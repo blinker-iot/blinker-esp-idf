@@ -35,6 +35,10 @@
 
 static const char *TAG = "blinker";
 
+char auth[] = "Your Device Secret Key";
+char ssid[] = "Your WiFi network SSID or name";
+char pswd[] = "Your WiFi network WPA password or WEP key";
+
 BlinkerButton button1 = {.name = "btn-abc"};
 BlinkerNumber number1 = {.name = "num-abc"};
 
@@ -80,5 +84,5 @@ void app_main()
     blinker_button_init(&button1, button1_callback);
     blinker_attach_data(data_callback);
 
-    Blinker.begin("921cad60498a", "有没有wifi", "i8888888");
+    Blinker.begin(auth, ssid, pswd);
 }
