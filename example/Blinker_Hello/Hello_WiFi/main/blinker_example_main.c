@@ -1,35 +1,35 @@
-// Copyright 2018-2025 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/* *****************************************************************
+ *
+ * Download latest Blinker library here:
+ * https://github.com/blinker-iot/blinker-freertos/archive/master.zip
+ * 
+ * 
+ * Blinker is a cross-hardware, cross-platform solution for the IoT. 
+ * It provides APP, device and server support, 
+ * and uses public cloud services for data transmission and storage.
+ * It can be used in smart home, data monitoring and other fields 
+ * to help users build Internet of Things projects better and faster.
+ * 
+ * Docs: https://doc.blinker.app/
+ *       https://github.com/blinker-iot/blinker-doc/wiki
+ * 
+ * *****************************************************************
+ * 
+ * Blinker 库下载地址:
+ * https://github.com/blinker-iot/blinker-freertos/archive/master.zip
+ * 
+ * Blinker 是一套跨硬件、跨平台的物联网解决方案，提供APP端、设备端、
+ * 服务器端支持，使用公有云服务进行数据传输存储。可用于智能家居、
+ * 数据监测等领域，可以帮助用户更好更快地搭建物联网项目。
+ * 
+ * 文档: https://doc.blinker.app/
+ *       https://github.com/blinker-iot/blinker-doc/wiki
+ * 
+ * *****************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "freertos/event_groups.h"
-#include "rom/ets_sys.h"
-#include "esp_wifi.h"
-#include "esp_system.h"
-#include "esp_event_loop.h"
-#include "nvs_flash.h"
-#include "tcpip_adapter.h"
-#include "esp_smartconfig.h"
-#include "smartconfig_ack.h"
-
-#include "driver/uart.h"
 
 #include "Blinker.h"
 
