@@ -72,7 +72,7 @@ const int32_t send_bytes = sizeof(send_data);
 
 #define BLINKER_SERVER "iotdev.clz.me"
 #define BLINKER_SERVER_PORT 443
-char* blinker_authkey;
+const char* blinker_authkey;
 char* https_request_data;
 int32_t https_request_bytes = 0;
 // char recv_data[1024] = {0};
@@ -103,6 +103,25 @@ uint8_t     dataFrom_MQTT = BLINKER_MSG_FROM_MQTT;
 
 int8_t      isMQTTinit = 0;
 uint32_t    kaTime = 0;
+const char* _aliType;
+const char* _duerType;
+const char* _miType;
+
+uint32_t    aliKaTime = 0;
+uint8_t     isAliAlive = 0;
+uint8_t     isAliAvail = 0;
+uint32_t    duerKaTime = 0;
+uint8_t     isDuerAlive = 0;
+uint8_t     isDuerAvail = 0;
+uint32_t    miKaTime = 0;
+uint8_t     isMIOTAlive = 0;
+uint8_t     isMIOTAvail = 0;
+uint8_t     respAliTimes = 0;
+uint32_t    respAliTime = 0;
+uint8_t     respDuerTimes = 0;
+uint32_t    respDuerTime = 0;
+uint8_t     respMIOTTimes = 0;
+uint32_t    respMIOTTime = 0;
 
 #define MQTT_CLIENT_THREAD_NAME         "mqtt_client_thread"
 #define MQTT_CLIENT_THREAD_STACK_WORDS  4096
@@ -112,6 +131,9 @@ void smartconfig_task(void * parm);
 void initialise_wifi();
 void blinker_https_get(const char * _host, const char * _url);
 blinker_callback_with_string_arg_t data_parse_func = NULL;
+blinker_callback_with_string_arg_t aligenie_parse_func = NULL;
+blinker_callback_with_string_arg_t dueros_parse_func = NULL;
+blinker_callback_with_string_arg_t miot_parse_func = NULL;
 
 #define CONFIG_MQTT_PAYLOAD_BUFFER 1460
 // #define CONFIG_MQTT_BROKER 
@@ -168,8 +190,9 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 
 void wifi_init_sta(const char * _key, const char * _ssid, const char * _pswd, blinker_callback_with_string_arg_t _func)
 {
-    blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
-    strcpy(blinker_authkey, _key);
+    // blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
+    // strcpy(blinker_authkey, _key);
+    blinker_authkey = _key;
 
     data_parse_func = _func;
 
@@ -231,8 +254,8 @@ void wifi_init_smart(const char * _key)
     // ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
 
-    BLINKER_LOG(TAG, "wifi_init_smart finished.");
-    // BLINKER_LOG(TAG, "connect to ap SSID:%s password:%s",
+    BLINKER_LOG_ALL(TAG, "wifi_init_smart finished.");
+    // BLINKER_LOG_ALL(TAG, "connect to ap SSID:%s password:%s",
     //          EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
 }
 
@@ -240,34 +263,34 @@ void sc_callback(smartconfig_status_t status, void *pdata)
 {
     switch (status) {
         case SC_STATUS_WAIT:
-            BLINKER_LOG(TAG, "SC_STATUS_WAIT");
+            BLINKER_LOG_ALL(TAG, "SC_STATUS_WAIT");
             break;
         case SC_STATUS_FIND_CHANNEL:
-            BLINKER_LOG(TAG, "SC_STATUS_FINDING_CHANNEL");
+            BLINKER_LOG_ALL(TAG, "SC_STATUS_FINDING_CHANNEL");
             break;
         case SC_STATUS_GETTING_SSID_PSWD:
-            BLINKER_LOG(TAG, "SC_STATUS_GETTING_SSID_PSWD");
+            BLINKER_LOG_ALL(TAG, "SC_STATUS_GETTING_SSID_PSWD");
             break;
         case SC_STATUS_LINK:
-            BLINKER_LOG(TAG, "SC_STATUS_LINK");
+            BLINKER_LOG_ALL(TAG, "SC_STATUS_LINK");
             wifi_config_t *wifi_config = pdata;
-            BLINKER_LOG(TAG, "SSID:%s", wifi_config->sta.ssid);
-            BLINKER_LOG(TAG, "PASSWORD:%s", wifi_config->sta.password);
+            BLINKER_LOG_ALL(TAG, "SSID:%s", wifi_config->sta.ssid);
+            BLINKER_LOG_ALL(TAG, "PASSWORD:%s", wifi_config->sta.password);
             ESP_ERROR_CHECK( esp_wifi_disconnect() );
             ESP_ERROR_CHECK( esp_wifi_set_config(ESP_IF_WIFI_STA, wifi_config) );
             ESP_ERROR_CHECK( esp_wifi_connect() );
             break;
         case SC_STATUS_LINK_OVER:
-            BLINKER_LOG(TAG, "SC_STATUS_LINK_OVER");
+            BLINKER_LOG_ALL(TAG, "SC_STATUS_LINK_OVER");
             if (pdata != NULL) {
                 sc_callback_data_t *sc_callback_data = (sc_callback_data_t *)pdata;
                 switch (sc_callback_data->type) {
                     case SC_ACK_TYPE_ESPTOUCH:
-                        BLINKER_LOG(TAG, "Phone ip: %d.%d.%d.%d", sc_callback_data->ip[0], sc_callback_data->ip[1], sc_callback_data->ip[2], sc_callback_data->ip[3]);
-                        BLINKER_LOG(TAG, "TYPE: ESPTOUCH");
+                        BLINKER_LOG_ALL(TAG, "Phone ip: %d.%d.%d.%d", sc_callback_data->ip[0], sc_callback_data->ip[1], sc_callback_data->ip[2], sc_callback_data->ip[3]);
+                        BLINKER_LOG_ALL(TAG, "TYPE: ESPTOUCH");
                         break;
                     case SC_ACK_TYPE_AIRKISS:
-                        BLINKER_LOG(TAG, "TYPE: AIRKISS");
+                        BLINKER_LOG_ALL(TAG, "TYPE: AIRKISS");
                         break;
                     default:
                         ESP_LOGE(TAG, "TYPE: ERROR");
@@ -289,10 +312,10 @@ void smartconfig_task(void * parm)
     while (1) {
         uxBits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT | ESPTOUCH_DONE_BIT, true, false, portMAX_DELAY); 
         if(uxBits & CONNECTED_BIT) {
-            BLINKER_LOG(TAG, "WiFi Connected to ap");
+            BLINKER_LOG_ALL(TAG, "WiFi Connected to ap");
         }
         if(uxBits & ESPTOUCH_DONE_BIT) {
-            BLINKER_LOG(TAG, "smartconfig over");
+            BLINKER_LOG_ALL(TAG, "smartconfig over");
             esp_smartconfig_stop();
             vTaskDelete(NULL);
         }
@@ -305,7 +328,7 @@ void initialise_wifi()
 
     sconf_step = sconf_begin;
 
-    BLINKER_LOG(TAG, "initialise_wifi");
+    BLINKER_LOG_ALL(TAG, "initialise_wifi");
 
     tcpip_adapter_init();
     wifi_event_group = xEventGroupCreate();
@@ -343,10 +366,10 @@ void get_time(void)
                 sntp_retry_cnt ++;
             }
 
-            printf("SNTP get time failed, retry after %d ms\n", sntp_retry_time);
+            BLINKER_LOG_ALL(TAG, "SNTP get time failed, retry after %d ms\n", sntp_retry_time);
             vTaskDelay(sntp_retry_time / portTICK_RATE_MS);
         } else {
-            printf("SNTP get time success\n");
+            BLINKER_LOG_ALL(TAG, "SNTP get time success\n");
             break;
         }
     }
@@ -362,16 +385,16 @@ void register_warn()
 void https_delay(uint8_t _seconds)
 {
     for (int countdown = _seconds; countdown >= 0; countdown--) {
-        printf("%d...\n", countdown);
+        BLINKER_LOG_ALL(TAG, "%d...\n", countdown);
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
 
-    printf("Starting again!\n");
+    BLINKER_LOG_ALL(TAG, "Starting again!\n");
 }
 
 int8_t check_register_data(const char * _data)
 {
-    BLINKER_LOG(TAG, "check_register_data");
+    BLINKER_LOG_ALL(TAG, "check_register_data");
 
     cJSON *root = cJSON_Parse(_data);
 
@@ -420,7 +443,7 @@ int8_t check_register_data(const char * _data)
 //     mbedtls_ssl_init(&ssl);
 //     mbedtls_x509_crt_init(&cacert);
 //     mbedtls_ctr_drbg_init(&ctr_drbg);
-//     ESP_LOGI(TAG, "Seeding the random number generator");
+//     BLINKER_LOG_ALL(TAG, "Seeding the random number generator");
 
 //     mbedtls_ssl_config_init(&conf);
 
@@ -432,7 +455,7 @@ int8_t check_register_data(const char * _data)
 //         abort();
 //     }
 
-//     ESP_LOGI(TAG, "Loading the CA root certificate...");
+//     BLINKER_LOG_ALL(TAG, "Loading the CA root certificate...");
 
 //     // ret = mbedtls_x509_crt_parse(&cacert, server_root_cert_pem_start,
 //     //                              server_root_cert_pem_end-server_root_cert_pem_start);
@@ -443,7 +466,7 @@ int8_t check_register_data(const char * _data)
 //     //     abort();
 //     // }
 
-//     ESP_LOGI(TAG, "Setting hostname for TLS session...");
+//     BLINKER_LOG_ALL(TAG, "Setting hostname for TLS session...");
 
 //      /* Hostname set here should match CN in server certificate */
 //     if((ret = mbedtls_ssl_set_hostname(&ssl, WEB_SERVER)) != 0)
@@ -452,7 +475,7 @@ int8_t check_register_data(const char * _data)
 //         abort();
 //     }
 
-//     ESP_LOGI(TAG, "Setting up the SSL/TLS structure...");
+//     BLINKER_LOG_ALL(TAG, "Setting up the SSL/TLS structure...");
 
 //     if((ret = mbedtls_ssl_config_defaults(&conf,
 //                                           MBEDTLS_SSL_IS_CLIENT,
@@ -492,11 +515,11 @@ int8_t check_register_data(const char * _data)
 //         */
 //         xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
 //                             false, true, portMAX_DELAY);
-//         ESP_LOGI(TAG, "Connected to AP");
+//         BLINKER_LOG_ALL(TAG, "Connected to AP");
 
 //         mbedtls_net_init(&server_fd);
 
-//         ESP_LOGI(TAG, "Connecting to %s:%s...", BLINKER_SERVER, BLINKER_SERVER_PORT);
+//         BLINKER_LOG_ALL(TAG, "Connecting to %s:%s...", BLINKER_SERVER, BLINKER_SERVER_PORT);
 
 //         if ((ret = mbedtls_net_connect(&server_fd, BLINKER_SERVER,
 //                                       BLINKER_SERVER_PORT, MBEDTLS_NET_PROTO_TCP)) != 0)
@@ -505,11 +528,11 @@ int8_t check_register_data(const char * _data)
 //             goto exit;
 //         }
 
-//         ESP_LOGI(TAG, "Connected.");
+//         BLINKER_LOG_ALL(TAG, "Connected.");
 
 //         mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
 
-//         ESP_LOGI(TAG, "Performing the SSL/TLS handshake...");
+//         BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake...");
 
 //         while ((ret = mbedtls_ssl_handshake(&ssl)) != 0)
 //         {
@@ -520,7 +543,7 @@ int8_t check_register_data(const char * _data)
 //             }
 //         }
 
-//         ESP_LOGI(TAG, "Verifying peer X.509 certificate...");
+//         BLINKER_LOG_ALL(TAG, "Verifying peer X.509 certificate...");
 
 //         if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0)
 //         {
@@ -531,12 +554,12 @@ int8_t check_register_data(const char * _data)
 //             ESP_LOGW(TAG, "verification info: %s", buf);
 //         }
 //         else {
-//             ESP_LOGI(TAG, "Certificate verified.");
+//             BLINKER_LOG_ALL(TAG, "Certificate verified.");
 //         }
 
-//         ESP_LOGI(TAG, "Cipher suite is %s", mbedtls_ssl_get_ciphersuite(&ssl));
+//         BLINKER_LOG_ALL(TAG, "Cipher suite is %s", mbedtls_ssl_get_ciphersuite(&ssl));
 
-//         ESP_LOGI(TAG, "Writing HTTP request...");
+//         BLINKER_LOG_ALL(TAG, "Writing HTTP request...");
 
 //         size_t written_bytes = 0;
 //         do {
@@ -544,7 +567,7 @@ int8_t check_register_data(const char * _data)
 //                                     (const unsigned char *)https_request_data + written_bytes,
 //                                     strlen(https_request_data) - written_bytes);
 //             if (ret >= 0) {
-//                 ESP_LOGI(TAG, "%d bytes written", ret);
+//                 BLINKER_LOG_ALL(TAG, "%d bytes written", ret);
 //                 written_bytes += ret;
 //             } else if (ret != MBEDTLS_ERR_SSL_WANT_WRITE && ret != MBEDTLS_ERR_SSL_WANT_READ) {
 //                 ESP_LOGE(TAG, "mbedtls_ssl_write returned -0x%x", -ret);
@@ -552,7 +575,7 @@ int8_t check_register_data(const char * _data)
 //             }
 //         } while(written_bytes < strlen(https_request_data));
 
-//         ESP_LOGI(TAG, "Reading HTTP response...");
+//         BLINKER_LOG_ALL(TAG, "Reading HTTP response...");
 
 //         do
 //         {
@@ -576,7 +599,7 @@ int8_t check_register_data(const char * _data)
 
 //             if(ret == 0)
 //             {
-//                 ESP_LOGI(TAG, "connection closed");
+//                 BLINKER_LOG_ALL(TAG, "connection closed");
 //                 break;
 //             }
 
@@ -591,10 +614,10 @@ int8_t check_register_data(const char * _data)
 //                 {
 //                     if (check_num == 2)
 //                     {
-//                         BLINKER_LOG(TAG, "headers received");
+//                         BLINKER_LOG_ALL(TAG, "headers received");
 //                         need_read = 1;
 //                     }
-//                     // BLINKER_LOG(TAG, "check_num: %d", check_num);
+//                     // BLINKER_LOG_ALL(TAG, "check_num: %d", check_num);
 //                     check_num = 0;
 //                 }
 //             }
@@ -615,20 +638,20 @@ int8_t check_register_data(const char * _data)
 //         // putchar('\n'); // JSON output doesn't have a newline at end
 
 //         // static int request_count;
-//         // ESP_LOGI(TAG, "Completed %d requests", ++request_count);
+//         // BLINKER_LOG_ALL(TAG, "Completed %d requests", ++request_count);
 
 //         // for(int countdown = 10; countdown >= 0; countdown--) {
-//         //     ESP_LOGI(TAG, "%d...", countdown);
+//         //     BLINKER_LOG_ALL(TAG, "%d...", countdown);
 //         //     vTaskDelay(1000 / portTICK_PERIOD_MS);
 //         // }
-//         // ESP_LOGI(TAG, "Starting again!");
+//         // BLINKER_LOG_ALL(TAG, "Starting again!");
 
 //         BLINKER_LOG_ALL(TAG, "reply was:");
 //         BLINKER_LOG_ALL(TAG, "==============================");
 //         BLINKER_LOG_ALL(TAG, "payload: %s", payload);
 //         BLINKER_LOG_ALL(TAG, "==============================");
 
-//         // BLINKER_LOG(TAG, "check isJson");
+//         // BLINKER_LOG_ALL(TAG, "check isJson");
 //         if (check_register_data(payload))
 //         {
 //             cJSON *root = cJSON_Parse(payload);
@@ -643,7 +666,7 @@ int8_t check_register_data(const char * _data)
 
 //             // if (cJSON_IsString(_userID) && (_userID->valuestring != NULL))
 //             // {
-//             //     BLINKER_LOG(TAG, "_userId: %s", _userID->valuestring);
+//             //     BLINKER_LOG_ALL(TAG, "_userId: %s", _userID->valuestring);
 //             // }
 //             if (isMQTTinit)
 //             {
@@ -662,7 +685,7 @@ int8_t check_register_data(const char * _data)
 
 //             if (strcmp(_broker->valuestring, BLINKER_MQTT_BORKER_ALIYUN) == 0)
 //             {
-//                 BLINKER_LOG(TAG, "broker is aliyun");
+//                 BLINKER_LOG_ALL(TAG, "broker is aliyun");
 
 //                 DEVICE_NAME_MQTT = (char*)malloc((strlen(_userID->valuestring)+1)*sizeof(char));
 //                 strcpy(DEVICE_NAME_MQTT, _userID->valuestring);
@@ -749,7 +772,7 @@ void wolfssl_client(void)
 
     while (1) {
 
-        printf("Setting hostname for TLS session...\n");
+        BLINKER_LOG_ALL(TAG, "Setting hostname for TLS session...\n");
 
         /*get addr info for hostname*/
         do {
@@ -757,36 +780,36 @@ void wolfssl_client(void)
             vTaskDelay(xDelay);
         } while (entry == NULL);
 
-        printf("Init wolfSSL...\n");
+        BLINKER_LOG_ALL(TAG, "Init wolfSSL...\n");
         ret = wolfSSL_Init();
 
         if (ret != WOLFSSL_SUCCESS) {
-            printf("Init wolfSSL failed:%d...\n", ret);
+            BLINKER_LOG_ALL(TAG, "Init wolfSSL failed:%d...\n", ret);
             goto failed1;
         }
 
-        printf("Set wolfSSL ctx ...\n");
+        BLINKER_LOG_ALL(TAG, "Set wolfSSL ctx ...\n");
         ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method());
 
         if (!ctx) {
-            printf("Set wolfSSL ctx failed...\n");
+            BLINKER_LOG_ALL(TAG, "Set wolfSSL ctx failed...\n");
             goto failed1;
         }
 
-        printf("Creat socket ...\n");
+        BLINKER_LOG_ALL(TAG, "Creat socket ...\n");
         socket = socket(AF_INET, SOCK_STREAM, 0);
 
         if (socket < 0) {
-            printf("Creat socket failed...\n");
+            BLINKER_LOG_ALL(TAG, "Creat socket failed...\n");
             goto failed2;
         }
 
 #if CONFIG_CERT_AUTH
-        printf("Loading the CA root certificate...\n");
+        BLINKER_LOG_ALL(TAG, "Loading the CA root certificate...\n");
         ret = wolfSSL_CTX_load_verify_buffer(ctx, server_root_cert_pem_start, server_root_cert_pem_end - server_root_cert_pem_start, WOLFSSL_FILETYPE_PEM);
 
         if (WOLFSSL_SUCCESS != ret) {
-            printf("Loading the CA root certificate failed...\n");
+            BLINKER_LOG_ALL(TAG, "Loading the CA root certificate failed...\n");
             goto failed3;
         }
 
@@ -800,50 +823,50 @@ void wolfssl_client(void)
         sock_addr.sin_port = htons(BLINKER_SERVER_PORT);
         sock_addr.sin_addr.s_addr = ((struct in_addr*)(entry->h_addr))->s_addr;
 
-        printf("Connecting to %s:%d...\n", BLINKER_SERVER, BLINKER_SERVER_PORT);
+        BLINKER_LOG_ALL(TAG, "Connecting to %s:%d...\n", BLINKER_SERVER, BLINKER_SERVER_PORT);
         ret = connect(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
 
         if (ret) {
-            printf("Connecting to %s:%d failed: %d\n", BLINKER_SERVER, BLINKER_SERVER_PORT, ret);
+            BLINKER_LOG_ALL(TAG, "Connecting to %s:%d failed: %d\n", BLINKER_SERVER, BLINKER_SERVER_PORT, ret);
             goto failed3;
         }
 
-        printf("Create wolfSSL...\n");
+        BLINKER_LOG_ALL(TAG, "Create wolfSSL...\n");
         ssl = wolfSSL_new(ctx);
 
         if (!ssl) {
-            printf("Create wolfSSL failed...\n");
+            BLINKER_LOG_ALL(TAG, "Create wolfSSL failed...\n");
             goto failed3;
         }
 
         wolfSSL_set_fd(ssl, socket);
 
-        printf("Performing the SSL/TLS handshake...\n");
+        BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake...\n");
         ret = wolfSSL_connect(ssl);
 
         if (WOLFSSL_SUCCESS != ret) {
-            printf("Performing the SSL/TLS handshake failed:%d\n", ret);
+            BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake failed:%d\n", ret);
             goto failed4;
         }
 
-        printf("Writing HTTPS request...\n");
+        BLINKER_LOG_ALL(TAG, "Writing HTTPS request...\n");
         ret = wolfSSL_write(ssl, https_request_data, https_request_bytes);
 
         if (ret <= 0) {
-            printf("Writing HTTPS request failed:%d\n", ret);
+            BLINKER_LOG_ALL(TAG, "Writing HTTPS request failed:%d\n", ret);
             goto failed5;
         }
 
-        printf("Reading HTTPS response...\n");
+        BLINKER_LOG_ALL(TAG, "Reading HTTPS response...\n");
 
         do {
             ret = wolfSSL_read(ssl, recv_data, sizeof(recv_data));
 
 
             if (ret <= 0) {
-                printf("\nConnection closed\n");
+                BLINKER_LOG_ALL(TAG, "\nConnection closed\n");
 
-                // BLINKER_LOG(TAG, "payload: %s", payload);
+                // BLINKER_LOG_ALL(TAG, "payload: %s", payload);
                 // BLINKER_LOG_FreeHeap(TAG);
 
                 need_read = 0;
@@ -851,21 +874,22 @@ void wolfssl_client(void)
                 break;
             }
 
-            BLINKER_LOG(TAG, "ret: %d", ret);
+            BLINKER_LOG_ALL(TAG, "ret: %d", ret);
 
             /* Print response directly to stdout as it is read */
+            BLINKER_LOG_ALL(TAG, "%s", recv_data);
             for (int i = 0; i < ret; i++) {
-                printf("%c", recv_data[i]);
+                // BLINKER_LOG_ALL(TAG, "%c", recv_data[i]);
                 if (need_read) payload[check_num] = recv_data[i];
                 check_num++;
                 if (recv_data[i] == '\n')
                 {
                     if (check_num == 2)
                     {
-                        BLINKER_LOG(TAG, "headers received");
+                        BLINKER_LOG_ALL(TAG, "headers received");
                         need_read = 1;
                     }
-                    // BLINKER_LOG(TAG, "check_num: %d", check_num);
+                    // BLINKER_LOG_ALL(TAG, "check_num: %d", check_num);
                     check_num = 0;
                 }
             }
@@ -887,7 +911,7 @@ failed1:
         BLINKER_LOG_ALL(TAG, "payload: %s", payload);
         BLINKER_LOG_ALL(TAG, "==============================");
 
-        // BLINKER_LOG(TAG, "check isJson");
+        // BLINKER_LOG_ALL(TAG, "check isJson");
         if (check_register_data(payload))
         {
             cJSON *root = cJSON_Parse(payload);
@@ -902,7 +926,7 @@ failed1:
 
             // if (cJSON_IsString(_userID) && (_userID->valuestring != NULL))
             // {
-            //     BLINKER_LOG(TAG, "_userId: %s", _userID->valuestring);
+            //     BLINKER_LOG_ALL(TAG, "_userId: %s", _userID->valuestring);
             // }
             if (isMQTTinit)
             {
@@ -921,7 +945,7 @@ failed1:
 
             if (strcmp(_broker->valuestring, BLINKER_MQTT_BORKER_ALIYUN) == 0)
             {
-                BLINKER_LOG(TAG, "broker is aliyun");
+                BLINKER_LOG_ALL(TAG, "broker is aliyun");
 
                 DEVICE_NAME_MQTT = (char*)malloc((strlen(_userID->valuestring)+1)*sizeof(char));
                 strcpy(DEVICE_NAME_MQTT, _userID->valuestring);
@@ -1018,7 +1042,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             if (!esp_http_client_is_chunked_response(evt->client)) {
                 // Write out data
-                // printf("%.*s", evt->data_len, (char*)evt->data);
+                // BLINKER_LOG_ALL(TAG, "%.*s", evt->data_len, (char*)evt->data);
             }
             break;
         case HTTP_EVENT_ON_FINISH:
@@ -1050,7 +1074,7 @@ void blinker_https_get(const char * _host, const char * _url)
     https_request_data = (char *)malloc(https_request_bytes);
     strcpy(https_request_data, _data);
 
-    BLINKER_LOG(TAG, "http datat: %s, len: %d", https_request_data, https_request_bytes);
+    BLINKER_LOG_ALL(TAG, "http datat: %s, len: %d", https_request_data, https_request_bytes);
 }
 
 void wolfssl_http(void* pv)
@@ -1064,6 +1088,9 @@ void https_test(void)
 
     char test_url[64] = "/api/v1/user/device/diy/auth?authKey=";
     strcat(test_url, blinker_authkey);
+    if (_aliType) strcat(test_url, _aliType);
+    if (_duerType) strcat(test_url, _duerType);
+    if (_miType) strcat(test_url, _miType);
     blinker_https_get("iotdev.clz.me", test_url);
 
     xTaskCreate(wolfssl_http,
@@ -1097,38 +1124,38 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
     // your_context_t *context = event->context;
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            BLINKER_LOG(TAG, "MQTT_EVENT_CONNECTED");
             msg_id = esp_mqtt_client_subscribe(client, BLINKER_SUB_TOPIC_MQTT, 0);
-            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+            BLINKER_LOG_ALL(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
             BLINKER_LOG_FreeHeap(TAG);
 
             // msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
-            // ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+            // BLINKER_LOG_ALL(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
             // msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
-            // ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+            // BLINKER_LOG_ALL(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            BLINKER_LOG(TAG, "MQTT_EVENT_DISCONNECTED");
             break;
 
         case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            BLINKER_LOG_ALL(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             // msg_id = esp_mqtt_client_publish(client, BLINKER_PUB_TOPIC_MQTT, "{\"data\":{\"state\":\"online\"},\"fromDevice\":\"FC03CAC2HQFPY94881XL7XLD\",\"toDevice\":\"73c7b5a4b2f221c0a72d7b4128e40237\",\"deviceType\":\"OwnApp\"}", 0, 0, 0);
-            // ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+            // BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            BLINKER_LOG_ALL(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            BLINKER_LOG_ALL(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_DATA:
             BLINKER_LOG_FreeHeap(TAG);
-            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-            printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-            printf("DATA=%.*s\r\n", event->data_len, event->data);
+            BLINKER_LOG_ALL(TAG, "MQTT_EVENT_DATA");
+            BLINKER_LOG_ALL(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
+            BLINKER_LOG_ALL(TAG, "DATA=%.*s", event->data_len, event->data);
 
             if (isFresh_MQTT) free(msgBuf_MQTT);
 
@@ -1141,15 +1168,17 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                     cJSON *_uuid = cJSON_GetObjectItemCaseSensitive(root, "fromDevice");
                     // cJSON *dataGet = cJSON_GetObjectItemCaseSensitive(root, "data");
 
-                    BLINKER_LOG(TAG, "from device: %s", _uuid->valuestring);
-                    // BLINKER_LOG(TAG, "data: %s", cJSON_PrintUnformatted(dataGet));
+                    BLINKER_LOG_ALL(TAG, "from device: %s", _uuid->valuestring);
+                    // BLINKER_LOG_ALL(TAG, "data: %s", cJSON_PrintUnformatted(dataGet));
 
                     // cJSON *ttest = cJSON_CreateObject();
                     // cJSON_AddItemToObject(ttest, "data", dataGet);
-                    // BLINKER_LOG(TAG, "data: %s", cJSON_PrintUnformatted(ttest));
+                    // BLINKER_LOG_ALL(TAG, "data: %s", cJSON_PrintUnformatted(ttest));
 
                     if (strncmp(UUID_MQTT, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
                     {
+                        BLINKER_LOG_ALL(TAG, "Authority uuid");
+
                         cJSON_Delete(root);
 
                         // msgBuf_MQTT = (char *)malloc((event->data_len + 1)*sizeof(char));
@@ -1160,17 +1189,46 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                         isAvail_MQTT = 1;
                         isFresh_MQTT = 1;
                         isAlive = 1;
+                    }
+                    else if (strncmp(BLINKER_CMD_ALIGENIE, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
+                    {
+                        BLINKER_LOG_ALL(TAG, "form AliGenie");
 
-                        BLINKER_LOG(TAG, "isAvail_MQTT!");
+                        cJSON_Delete(root);
+
+                        if (aligenie_parse_func) aligenie_parse_func(event->data);
+                        aliKaTime = millis();
+                        isAliAlive = 1;
+                        isAliAvail = 1;
+                    }
+                    else if (strncmp(BLINKER_CMD_DUEROS, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
+                    {
+                        BLINKER_LOG_ALL(TAG, "form DuerOS");
+
+                        cJSON_Delete(root);
+
+                        if (dueros_parse_func) dueros_parse_func(event->data);
+                        duerKaTime = millis();
+                        isDuerAlive = 1;
+                        isDuerAvail = 1;
+                    }
+                    else if (strncmp(BLINKER_CMD_MIOT, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
+                    {
+                        BLINKER_LOG_ALL(TAG, "form MIOT");
+
+                        cJSON_Delete(root);
+
+                        if (miot_parse_func) miot_parse_func(event->data);
+                        miKaTime = millis();
+                        isMIOTAlive = 1;
+                        isMIOTAvail = 1;
                     }
                     else
                     {
                         cJSON_Delete(root);
 
-                        BLINKER_LOG(TAG, "not from UUID!");
+                        BLINKER_LOG_ALL(TAG, "not from UUID!");
                     }
-
-                    // cJSON_Delete(_uuid);
                 }
                 else
                 {
@@ -1184,11 +1242,11 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             }
 
             // msg_id = esp_mqtt_client_publish(client, BLINKER_PUB_TOPIC_MQTT, "{\"data\":{\"state\":\"online\"},\"fromDevice\":\"FC03CAC2HQFPY94881XL7XLD\",\"toDevice\":\"73c7b5a4b2f221c0a72d7b4128e40237\",\"deviceType\":\"OwnApp\"}", 0, 0, 0);
-            // ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+            // BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
             // free(blinker_mqtt_client.mqtt_state);
             break;
         case MQTT_EVENT_ERROR:
-            ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+            BLINKER_LOG_ALL(TAG, "MQTT_EVENT_ERROR");
             break;
     }
     return ESP_OK;
@@ -1218,9 +1276,27 @@ void blinker_mqtt_init(void)
         // .cert_pem = (const char *)iot_eclipse_org_pem_start,
     };
 
-    ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
+    BLINKER_LOG_ALL(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_start(client);
+}
+
+void ali_type(const char *type, blinker_callback_with_string_arg_t func)
+{
+    _aliType = type;
+    aligenie_parse_func = func;
+}
+
+void duer_type(const char *type, blinker_callback_with_string_arg_t func)
+{
+    _duerType = type;
+    dueros_parse_func = func;
+}
+
+void mi_type(const char *type, blinker_callback_with_string_arg_t func)
+{
+    _miType = type;
+    miot_parse_func = func;
 }
 
 int available(void)
@@ -1245,7 +1321,7 @@ void flush(void)
 {
     if (isFresh_MQTT)
     {
-        BLINKER_LOG(TAG, "flush");
+        BLINKER_LOG_ALL(TAG, "flush");
 
         free(msgBuf_MQTT); 
         isFresh_MQTT = 0;
@@ -1253,13 +1329,34 @@ void flush(void)
     }
 }
 
-void checkKA(void) {
+void check_ka(void) {
     if (millis() - kaTime >= BLINKER_MQTT_KEEPALIVE)
-        isAlive = false;
+        isAlive = 0;
+}
+
+int check_ali_ka(void) {
+    if (millis() - aliKaTime >= 10000)
+        return 0;
+    else
+        return 1;
+}
+
+int check_duer_ka(void) {
+    if (millis() - duerKaTime >= 10000)
+        return 0;
+    else
+        return 1;
+}
+
+int check_miot_ka(void) {
+    if (millis() - miKaTime >= 10000)
+        return 0;
+    else
+        return 1;
 }
 
 int8_t check_can_print(void) {
-    checkKA();
+    check_ka();
 
     if ((millis() - printTime >= BLINKER_MQTT_MSG_LIMIT && isAlive) || printTime == 0) {
         return 1;
@@ -1288,6 +1385,75 @@ int8_t check_print_span(void) {
     }
 }
 
+int check_ali_print_span(void)
+{
+    if (millis() - respAliTime < BLINKER_PRINT_MSG_LIMIT/2)
+    {
+        if (respAliTimes > BLINKER_PRINT_MSG_LIMIT/2)
+        {
+            BLINKER_ERR_LOG(TAG, "ALIGENIE NOT ALIVE OR MSG LIMIT");
+
+            return false;
+        }
+        else
+        {
+            respAliTimes++;
+            return true;
+        }
+    }
+    else
+    {
+        respAliTimes = 0;
+        return true;
+    }
+}
+
+int check_duer_print_span(void)
+{
+    if (millis() - respDuerTime < BLINKER_PRINT_MSG_LIMIT/2)
+    {
+        if (respDuerTimes > BLINKER_PRINT_MSG_LIMIT/2)
+        {
+            BLINKER_ERR_LOG(TAG, "DUEROS NOT ALIVE OR MSG LIMIT");
+
+            return false;
+        }
+        else
+        {
+            respDuerTimes++;
+            return true;
+        }
+    }
+    else
+    {
+        respDuerTimes = 0;
+        return true;
+    }
+}
+
+int check_miot_print_span(void)
+{
+    if (millis() - respMIOTTime < BLINKER_PRINT_MSG_LIMIT/2)
+    {
+        if (respMIOTTimes > BLINKER_PRINT_MSG_LIMIT/2)
+        {
+            BLINKER_ERR_LOG(TAG, "DUEROS NOT ALIVE OR MSG LIMIT");
+
+            return false;
+        }
+        else
+        {
+            respMIOTTimes++;
+            return true;
+        }
+    }
+    else
+    {
+        respMIOTTimes = 0;
+        return true;
+    }
+}
+
 int8_t check_print_limit(void)
 {
     if ((millis() - _print_time) < 60000)
@@ -1307,7 +1473,7 @@ int8_t check_print_limit(void)
     }
 }
 
-int8_t blinker_mqtt_print(char *data)
+int8_t blinker_mqtt_print(char *data, uint8_t need_check)
 {
     if (isMQTTinit)
     {
@@ -1342,34 +1508,214 @@ int8_t blinker_mqtt_print(char *data)
 
         // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
 
-        BLINKER_LOG(TAG, "publish: %s", data);
+        BLINKER_LOG_ALL(TAG, "publish: %s", data);
 
         int8_t _alive = isAlive;
 
-        if (!check_print_span())
+        if (!isJson(data))
         {
+            BLINKER_ERR_LOG(TAG, "Print data is not Json!");
             return 0;
         }
-        respTime = millis();
 
-        if (!check_can_print())
+        if (need_check)
         {
-            if (!_alive)
+            if (!check_print_span())
             {
-                isAlive = 0;
+                return 0;
             }
-            return 0;
-        }
+            respTime = millis();
 
-        if (!check_print_limit())
-        {
-            return 0;
-        }
+            if (!check_can_print())
+            {
+                if (!_alive)
+                {
+                    isAlive = 0;
+                }
+                return 0;
+            }
 
-        _print_times++;
+            if (!check_print_limit())
+            {
+                return 0;
+            }
+
+            _print_times++;
+        }
 
         int msg_id = esp_mqtt_client_publish(blinker_mqtt_client, BLINKER_PUB_TOPIC_MQTT, data, 0, 0, 0);
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
+        return 1;
+    }
+
+    return 0;
+}
+
+int8_t blinker_aligenie_mqtt_print(char *data)
+{
+    if (isMQTTinit)
+    {
+        uint16_t num = strlen(data);
+
+        for(uint16_t c_num = num; c_num > 0; c_num--)
+        {
+            data[c_num+7] = data[c_num-1];
+        }
+
+        data[num+8] = '\0';        
+
+        char data_add[20] = "{\"data\":";
+        for(uint8_t c_num = 0; c_num < 8; c_num++)
+        {
+            data[c_num] = data_add[c_num];
+        }
+        strcat(data, ",\"fromDevice\":\"");
+        strcat(data, MQTT_ID_MQTT);
+        strcat(data, "\",\"toDevice\":\"AliGenie_r\"");
+        strcat(data, ",\"deviceType\":\"vAssistant\"}");
+
+        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+
+        BLINKER_LOG_ALL(TAG, "publish: %s", data);
+
+        if (!isJson(data))
+        {
+            BLINKER_ERR_LOG(TAG, "Print data is not Json!");
+            return 0;
+        }
+
+        // int8_t _alive = isAlive;
+
+        if (!check_ali_ka())
+        {
+            return 0;
+        }
+
+        if (!check_ali_print_span())
+        {
+            respAliTime = millis();
+            return 0;
+        }
+        respAliTime = millis();
+
+        int msg_id = esp_mqtt_client_publish(blinker_mqtt_client, BLINKER_PUB_TOPIC_MQTT, data, 0, 0, 0);
+        BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+        isAliAlive = 0;
+        return 1;
+    }
+
+    return 0;
+}
+
+int8_t blinker_dueros_mqtt_print(char *data)
+{
+    if (isMQTTinit)
+    {
+        uint16_t num = strlen(data);
+
+        for(uint16_t c_num = num; c_num > 0; c_num--)
+        {
+            data[c_num+7] = data[c_num-1];
+        }
+
+        data[num+8] = '\0';        
+
+        char data_add[20] = "{\"data\":";
+        for(uint8_t c_num = 0; c_num < 8; c_num++)
+        {
+            data[c_num] = data_add[c_num];
+        }
+        strcat(data, ",\"fromDevice\":\"");
+        strcat(data, MQTT_ID_MQTT);
+        strcat(data, "\",\"toDevice\":\"AliGenie_r\"");
+        strcat(data, ",\"deviceType\":\"vAssistant\"}");
+
+        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+
+        BLINKER_LOG_ALL(TAG, "publish: %s", data);
+
+        if (!isJson(data))
+        {
+            BLINKER_ERR_LOG(TAG, "Print data is not Json!");
+            return 0;
+        }
+
+        // int8_t _alive = isAlive;
+
+        if (!check_duer_ka())
+        {
+            return 0;
+        }
+
+        if (!check_duer_print_span())
+        {
+            respDuerTime = millis();
+            return 0;
+        }
+        respDuerTime = millis();
+
+        int msg_id = esp_mqtt_client_publish(blinker_mqtt_client, BLINKER_PUB_TOPIC_MQTT, data, 0, 0, 0);
+        BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+        isDuerAlive = 0;
+        return 1;
+    }
+
+    return 0;
+}
+
+int8_t blinker_miot_mqtt_print(char *data)
+{
+    if (isMQTTinit)
+    {
+        uint16_t num = strlen(data);
+
+        for(uint16_t c_num = num; c_num > 0; c_num--)
+        {
+            data[c_num+7] = data[c_num-1];
+        }
+
+        data[num+8] = '\0';        
+
+        char data_add[20] = "{\"data\":";
+        for(uint8_t c_num = 0; c_num < 8; c_num++)
+        {
+            data[c_num] = data_add[c_num];
+        }
+        strcat(data, ",\"fromDevice\":\"");
+        strcat(data, MQTT_ID_MQTT);
+        strcat(data, "\",\"toDevice\":\"MIOT_r\"");
+        strcat(data, ",\"deviceType\":\"vAssistant\"}");
+
+        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+
+        BLINKER_LOG_ALL(TAG, "publish: %s", data);
+
+        if (!isJson(data))
+        {
+            BLINKER_ERR_LOG(TAG, "Print data is not Json!");
+            return 0;
+        }
+
+        // int8_t _alive = isAlive;
+
+        if (!check_miot_ka())
+        {
+            return 0;
+        }
+
+        if (!check_miot_print_span())
+        {
+            respMIOTTime = millis();
+            return 0;
+        }
+        respMIOTTime = millis();
+
+        int msg_id = esp_mqtt_client_publish(blinker_mqtt_client, BLINKER_PUB_TOPIC_MQTT, data, 0, 0, 0);
+        BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+        isMIOTAlive = 0;
         return 1;
     }
 

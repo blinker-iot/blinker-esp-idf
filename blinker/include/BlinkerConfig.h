@@ -459,4 +459,66 @@
 
 #define true                            1
 
+#define BLINKER_ALIGENIE_LIGHT          "&aliType=light"
+
+#define BLINKER_ALIGENIE_OUTLET         "&aliType=outlet"
+
+#define BLINKER_ALIGENIE_MULTI_OUTLET   "&aliType=multi_outlet"
+
+#define BLINKER_ALIGENIE_SENSOR         "&aliType=sensor"
+
+#define BLINKER_DUEROS_LIGHT            "&duerType=LIGHT"
+
+#define BLINKER_DUEROS_OUTLET           "&duerType=SOCKET"
+
+#define BLINKER_DUEROS_MULTI_OUTLET     "&duerType=MULTI_SOCKET"
+
+#define BLINKER_DUEROS_SENSOR           "&duerType=AIR_MONITOR"
+
+#define BLINKER_MIOT_LIGHT              "&miType=light"
+
+#define BLINKER_MIOT_OUTLET             "&miType=outlet"
+
+#define BLINKER_MIOT_MULTI_OUTLET       "&miType=multi_outlet"
+
+#define BLINKER_MIOT_SENSOR             "&miType=sensor"
+
+#define BLINKER_CMD_MODE_READING_NUMBER         0
+
+#define BLINKER_CMD_MODE_MOVIE_NUMBER           1
+
+#define BLINKER_CMD_SLEEP_NUMBER                2
+
+#define BLINKER_CMD_HOLIDAY_NUMBER              3
+
+#define BLINKER_CMD_MUSIC_NUMBER                4
+
+#define BLINKER_CMD_COMMON_NUMBER               5
+
+#define BLINKER_CMD_QUERY_ALL_NUMBER            0
+
+#define BLINKER_CMD_QUERY_POWERSTATE_NUMBER     1
+
+#define BLINKER_CMD_QUERY_COLOR_NUMBER          2
+
+#define BLINKER_CMD_QUERY_MODE_NUMBER           3
+
+#define BLINKER_CMD_QUERY_COLORTEMP_NUMBER      4
+
+#define BLINKER_CMD_QUERY_BRIGHTNESS_NUMBER     5
+
+#define BLINKER_CMD_QUERY_TEMP_NUMBER           6
+
+#define BLINKER_CMD_QUERY_HUMI_NUMBER           7
+
+#define BLINKER_CMD_QUERY_PM25_NUMBER           8
+
+#define BLINKER_CMD_QUERY_PM10_NUMBER           9
+
+#define BLINKER_CMD_QUERY_CO2_NUMBER            10
+
+#define BLINKER_CMD_QUERY_AQI_NUMBER            11
+
+#define BLINKER_CMD_QUERY_TIME_NUMBER           12
+
 #endif

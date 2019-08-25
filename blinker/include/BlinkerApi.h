@@ -20,32 +20,32 @@ enum blinker_wifi_type_t
     BLINKER_ESP_SMARTCONFIG
 };
 
-enum blinker_aligenie_type_t
-{
-    BLINKER_ALIGENIE_NONE,
-    BLINKER_ALIGENIE_LIGHT,
-    BLINKER_ALIGENIE_OUTLET,
-    BLINKER_ALIGENIE_MULTI_OUTLET,
-    BLINKER_ALIGENIE_SENSOR
-};
+// enum blinker_aligenie_type_t
+// {
+//     BLINKER_ALIGENIE_NONE,
+//     BLINKER_ALIGENIE_LIGHT,
+//     BLINKER_ALIGENIE_OUTLET,
+//     BLINKER_ALIGENIE_MULTI_OUTLET,
+//     BLINKER_ALIGENIE_SENSOR
+// };
 
-enum blinker_dueros_type_t
-{
-    BLINKER_DUEROS_NONE,
-    BLINKER_DUEROS_LIGHT,
-    BLINKER_DUEROS_OUTLET,
-    BLINKER_DUEROS_MULTI_OUTLET,
-    BLINKER_DUEROS_SENSOR
-};
+// enum blinker_dueros_type_t
+// {
+//     BLINKER_DUEROS_NONE,
+//     BLINKER_DUEROS_LIGHT,
+//     BLINKER_DUEROS_OUTLET,
+//     BLINKER_DUEROS_MULTI_OUTLET,
+//     BLINKER_DUEROS_SENSOR
+// };
 
-enum blinker_miot_type_t
-{
-    BLINKER_MIOT_NONE,
-    BLINKER_MIOT_LIGHT,
-    BLINKER_MIOT_OUTLET,
-    BLINKER_MIOT_MULTI_OUTLET,
-    BLINKER_MIOT_SENSOR
-};
+// enum blinker_miot_type_t
+// {
+//     BLINKER_MIOT_NONE,
+//     BLINKER_MIOT_LIGHT,
+//     BLINKER_MIOT_OUTLET,
+//     BLINKER_MIOT_MULTI_OUTLET,
+//     BLINKER_MIOT_SENSOR
+// };
 
 typedef struct
 {
@@ -134,10 +134,53 @@ typedef struct
 {
     enum blinker_device_type_t      type;
     enum blinker_wifi_type_t        wifi;
-    enum blinker_aligenie_type_t    aligenie;
-    enum blinker_dueros_type_t      dueros;
-    enum blinker_miot_type_t        miot;
+    const char *                    aligenie;
+    const char *                    dueros;
+    const char *                    miot;
 } blinker_config_t;
+
+typedef struct
+{
+    const char *power_state;
+    const char *num;
+    const char *color;
+    const char *mode;
+    const char *color_temp;
+    const char *brightness;
+    const char *temp;
+    const char *humi;
+    const char *pm25;
+} blinker_aligenie_config_t;
+
+typedef struct
+{
+    const char *power_state;
+    const char *num;
+    const char *color;
+    const char *mode;
+    const char *brightness;
+    const char *temp;
+    const char *humi;
+    const char *pm25;
+    const char *pm10;
+    const char *co2;
+    const char *aqi;
+    const char *time;
+} blinker_dueros_config_t;
+
+typedef struct
+{
+    const char *power_state;
+    const char *num;
+    const char *color;
+    const char *mode;
+    const char *color_temp;
+    const char *brightness;
+    const char *temp;
+    const char *humi;
+    const char *pm25;
+    const char *co2;
+} blinker_miot_config_t;
 
 typedef struct
 {
@@ -145,6 +188,70 @@ typedef struct
 } blinker_api_t;
 
 extern blinker_api_t Blinker;
+
+void blinker_aligenie_power_state_init(blinker_callback_with_string_arg_t func);
+
+void blinker_aligenie_multi_power_state_init(blinker_callback_with_string_uint8_arg_t func);
+
+void blinker_aligenie_color_init(blinker_callback_with_string_arg_t func);
+
+void blinker_aligenie_mode_init(blinker_callback_with_string_arg_t func);
+
+void blinker_aligenie_cancle_mode_init(blinker_callback_with_string_arg_t func);
+
+void blinker_aligeinie_brightness_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_aligenie_relative_brightness_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_aligenie_color_temperature_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_aligenie_relative_color_temperature_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_aligenie_query_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_aligenie_multi_query_init(blinker_callback_with_int32_uint8_arg_t func);
+
+void blinker_aligenie_print(const blinker_aligenie_config_t *config);
+
+
+
+void blinker_dueros_power_state_init(blinker_callback_with_string_arg_t func);
+
+void blinker_dueros_multi_power_state_init(blinker_callback_with_string_uint8_arg_t func);
+
+void blinker_dueros_color_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_dueros_mode_init(blinker_callback_with_string_arg_t func);
+
+void blinker_dueros_cancle_mode_init(blinker_callback_with_string_arg_t func);
+
+void blinker_dueros_brightness_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_dueros_query_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_dueros_multi_query_init(blinker_callback_with_int32_uint8_arg_t func);
+
+
+
+void blinker_miot_power_state_init(blinker_callback_with_string_arg_t func);
+
+void blinker_miot_multi_power_state_init(blinker_callback_with_string_uint8_arg_t func);
+
+void blinker_miot_color_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_miot_mode_init(blinker_callback_with_uint8_arg_t func);
+
+void blinker_miot_brightness_init(blinker_callback_with_string_arg_t func);
+
+void blinker_miot_color_temperature_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_miot_query_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_miot_multi_query_init(blinker_callback_with_int32_arg_t func);
+
+void blinker_miot_print(const blinker_miot_config_t *config);
+
+
 
 void blinker_attach_data(blinker_callback_with_json_arg_t func);
 

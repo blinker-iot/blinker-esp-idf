@@ -13,12 +13,24 @@ void blinker_mqtt_init(void);
 
 // void initialise_wifi();
 
+void ali_type(const char *type, blinker_callback_with_string_arg_t func);
+
+void duer_type(const char *type, blinker_callback_with_string_arg_t func);
+
+void mi_type(const char *type, blinker_callback_with_string_arg_t func);
+
 int available(void);
 
 char *last_read(void);
 
 void flush(void);
 
-int8_t blinker_mqtt_print(char *_data);
+int8_t blinker_mqtt_print(char *_data, uint8_t need_check);
+
+int8_t blinker_aligenie_mqtt_print(char *data);
+
+int8_t blinker_dueros_mqtt_print(char *data);
+
+int8_t blinker_miot_mqtt_print(char *data);
 
 #endif

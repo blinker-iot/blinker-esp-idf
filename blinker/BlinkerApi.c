@@ -19,6 +19,9 @@ uint32_t autoFormatFreshTime = 0;
 void run(void);
 void blinker_run(void* pv);
 void parse(const char *data);
+void aligenie_parse(const char *data);
+void dueros_parse(const char *data);
+void miot_parse(const char *data);
 
 typedef struct
 {
@@ -56,6 +59,251 @@ uint8_t     _wCount_tab = 0;
 
 blinker_callback_with_json_arg_t data_availablie_func = NULL;
 
+blinker_callback_with_string_uint8_arg_t    _AliGeniePowerStateFunc_m = NULL;
+blinker_callback_with_string_arg_t          _AliGeniePowerStateFunc = NULL;
+blinker_callback_with_string_arg_t          _AliGenieSetColorFunc = NULL;
+blinker_callback_with_string_arg_t          _AliGenieSetModeFunc = NULL;
+blinker_callback_with_string_arg_t          _AliGenieSetcModeFunc = NULL;
+blinker_callback_with_int32_arg_t           _AliGenieSetBrightnessFunc = NULL;
+blinker_callback_with_int32_arg_t           _AliGenieSetRelativeBrightnessFunc = NULL;
+blinker_callback_with_int32_arg_t           _AliGenieSetColorTemperature = NULL;
+blinker_callback_with_int32_arg_t           _AliGenieSetRelativeColorTemperature = NULL;
+blinker_callback_with_int32_uint8_arg_t     _AliGenieQueryFunc_m = NULL;
+blinker_callback_with_int32_arg_t           _AliGenieQueryFunc = NULL;
+
+blinker_callback_with_string_uint8_arg_t    _DuerOSPowerStateFunc_m = NULL;
+blinker_callback_with_string_arg_t          _DuerOSPowerStateFunc = NULL;
+blinker_callback_with_int32_arg_t           _DuerOSSetColorFunc = NULL;
+blinker_callback_with_string_arg_t          _DuerOSSetModeFunc = NULL;
+blinker_callback_with_string_arg_t          _DuerOSSetcModeFunc = NULL;
+blinker_callback_with_int32_arg_t           _DuerOSSetBrightnessFunc = NULL;
+blinker_callback_with_int32_arg_t           _DuerOSSetRelativeBrightnessFunc = NULL;
+// blinker_callback_with_int32_arg_t        _DuerOSSetColorTemperature = NULL;
+// blinker_callback_with_int32_arg_t        _DuerOSSetRelativeColorTemperature = NULL;
+blinker_callback_with_int32_uint8_arg_t     _DuerOSQueryFunc_m = NULL;
+blinker_callback_with_int32_arg_t           _DuerOSQueryFunc = NULL;
+
+blinker_callback_with_string_uint8_arg_t    _MIOTPowerStateFunc_m = NULL;
+blinker_callback_with_string_arg_t          _MIOTPowerStateFunc = NULL;
+blinker_callback_with_int32_arg_t           _MIOTSetColorFunc = NULL;
+blinker_callback_with_uint8_arg_t           _MIOTSetModeFunc = NULL;
+// blinker_callback_with_string_arg_t       _MIOTSetcModeFunc = NULL;
+blinker_callback_with_int32_arg_t           _MIOTSetBrightnessFunc = NULL;
+// blinker_callback_with_int32_arg_t        _MIOTSetRelativeBrightnessFunc = NULL;
+blinker_callback_with_int32_arg_t           _MIOTSetColorTemperature = NULL;
+// blinker_callback_with_int32_arg_t        _MIOTSetRelativeColorTemperature = NULL;
+blinker_callback_with_int32_uint8_arg_t     _MIOTQueryFunc_m = NULL;
+blinker_callback_with_int32_arg_t           _MIOTQueryFunc = NULL;
+
+void blinker_aligenie_power_state_init(blinker_callback_with_string_arg_t func)
+{
+    _AliGeniePowerStateFunc = func;
+}
+
+void blinker_aligenie_multi_power_state_init(blinker_callback_with_string_uint8_arg_t func)
+{
+    _AliGeniePowerStateFunc_m = func;
+}
+
+void blinker_aligenie_color_init(blinker_callback_with_string_arg_t func)
+{
+    _AliGenieSetColorFunc = func;
+}
+
+void blinker_aligenie_mode_init(blinker_callback_with_string_arg_t func)
+{
+    _AliGenieSetModeFunc = func;
+}
+
+void blinker_aligenie_cancle_mode_init(blinker_callback_with_string_arg_t func)
+{
+    _AliGenieSetcModeFunc = func;
+}
+
+void blinker_aligeinie_brightness_init(blinker_callback_with_int32_arg_t func)
+{
+    _AliGenieSetBrightnessFunc = func;
+}
+
+void blinker_aligenie_relative_brightness_init(blinker_callback_with_int32_arg_t func)
+{
+    _AliGenieSetRelativeBrightnessFunc = func;
+}
+
+void blinker_aligenie_color_temperature_init(blinker_callback_with_int32_arg_t func)
+{
+    _AliGenieSetColorTemperature = func;
+}
+
+void blinker_aligenie_relative_color_temperature_init(blinker_callback_with_int32_arg_t func)
+{
+    _AliGenieSetRelativeColorTemperature = func;
+}
+
+void blinker_aligenie_query_init(blinker_callback_with_int32_arg_t func)
+{
+    _AliGenieQueryFunc = func;
+}
+
+void blinker_aligenie_multi_query_init(blinker_callback_with_int32_uint8_arg_t func)
+{
+    _AliGenieQueryFunc_m = func;
+}
+
+void blinker_aligenie_print(const blinker_aligenie_config_t *config)
+{
+    cJSON *pValue = cJSON_CreateObject();
+
+    if (config->power_state) cJSON_AddStringToObject(pValue, BLINKER_CMD_POWERSTATE, config->power_state);
+    if (config->num) cJSON_AddStringToObject(pValue, "num", config->num);
+    if (config->color) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLOR, config->color);
+    if (config->color) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLOR_, config->color);
+    if (config->mode) cJSON_AddStringToObject(pValue, BLINKER_CMD_MODE, config->mode);
+    if (config->color_temp) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLORTEMP, config->color_temp);
+    if (config->brightness) cJSON_AddStringToObject(pValue, BLINKER_CMD_BRIGHTNESS, config->brightness);
+    if (config->temp) cJSON_AddStringToObject(pValue, BLINKER_CMD_TEMP, config->temp);
+    if (config->humi) cJSON_AddStringToObject(pValue, BLINKER_CMD_HUMI, config->humi);
+    if (config->pm25) cJSON_AddStringToObject(pValue, BLINKER_CMD_PM25, config->pm25);
+
+    char _data[BLINKER_MAX_SEND_SIZE] = {0};
+    cJSON_PrintPreallocated(pValue, _data, BLINKER_MAX_SEND_SIZE, 0);
+    blinker_aligenie_mqtt_print(_data);
+
+    cJSON_Delete(pValue);
+}
+
+
+
+void blinker_dueros_power_state_init(blinker_callback_with_string_arg_t func)
+{
+    _DuerOSPowerStateFunc = func;
+}
+
+void blinker_dueros_multi_power_state_init(blinker_callback_with_string_uint8_arg_t func)
+{
+    _DuerOSPowerStateFunc_m = func;
+}
+
+void blinker_dueros_color_init(blinker_callback_with_int32_arg_t func)
+{
+    _DuerOSSetColorFunc = func;
+}
+
+void blinker_dueros_mode_init(blinker_callback_with_string_arg_t func)
+{
+    _DuerOSSetModeFunc = func;
+}
+
+void blinker_dueros_cancle_mode_init(blinker_callback_with_string_arg_t func)
+{
+    _DuerOSSetcModeFunc = func;
+}
+
+void blinker_dueros_brightness_init(blinker_callback_with_int32_arg_t func)
+{
+    _DuerOSSetBrightnessFunc = func;
+}
+
+void blinker_dueros_query_init(blinker_callback_with_int32_arg_t func)
+{
+    _DuerOSQueryFunc = func;
+}
+
+void blinker_dueros_multi_query_init(blinker_callback_with_int32_uint8_arg_t func)
+{
+    _DuerOSQueryFunc_m = func;
+}
+
+void blinker_dueros_print(const blinker_dueros_config_t *config)
+{
+    cJSON *pValue = cJSON_CreateObject();
+
+    if (config->power_state) cJSON_AddStringToObject(pValue, BLINKER_CMD_POWERSTATE, config->power_state);
+    if (config->num) cJSON_AddStringToObject(pValue, "num", config->num);
+    if (config->color) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLOR, config->color);
+    if (config->color) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLOR_, config->color);
+    if (config->mode) cJSON_AddStringToObject(pValue, BLINKER_CMD_MODE, config->mode);
+    if (config->brightness) cJSON_AddStringToObject(pValue, BLINKER_CMD_BRIGHTNESS, config->brightness);
+    if (config->temp) cJSON_AddStringToObject(pValue, BLINKER_CMD_TEMP, config->temp);
+    if (config->humi) cJSON_AddStringToObject(pValue, BLINKER_CMD_HUMI, config->humi);
+    if (config->pm25) cJSON_AddStringToObject(pValue, BLINKER_CMD_PM25, config->pm25);
+    if (config->pm10) cJSON_AddStringToObject(pValue, BLINKER_CMD_PM25, config->pm10);
+    if (config->aqi) cJSON_AddStringToObject(pValue, BLINKER_CMD_PM25, config->aqi);
+    if (config->co2) cJSON_AddStringToObject(pValue, BLINKER_CMD_CO2, config->co2);
+    if (config->time) cJSON_AddStringToObject(pValue, BLINKER_CMD_CO2, config->time);
+
+    char _data[BLINKER_MAX_SEND_SIZE] = {0};
+    cJSON_PrintPreallocated(pValue, _data, BLINKER_MAX_SEND_SIZE, 0);
+    blinker_dueros_mqtt_print(_data);
+
+    cJSON_Delete(pValue);
+}
+
+
+
+void blinker_miot_power_state_init(blinker_callback_with_string_arg_t func)
+{
+    _MIOTPowerStateFunc = func;
+}
+
+void blinker_miot_multi_power_state_init(blinker_callback_with_string_uint8_arg_t func)
+{
+    _MIOTPowerStateFunc_m = func;
+}
+
+void blinker_miot_color_init(blinker_callback_with_int32_arg_t func)
+{
+    _MIOTSetColorFunc = func;
+}
+
+void blinker_miot_mode_init(blinker_callback_with_uint8_arg_t func)
+{
+    _MIOTSetModeFunc = func;
+}
+
+void blinker_miot_brightness_init(blinker_callback_with_string_arg_t func)
+{
+    _MIOTSetBrightnessFunc = func;
+}
+
+void blinker_miot_color_temperature_init(blinker_callback_with_int32_arg_t func)
+{
+    _MIOTSetColorTemperature = func;
+}
+
+void blinker_miot_query_init(blinker_callback_with_int32_arg_t func)
+{
+    _MIOTQueryFunc = func;
+}
+
+void blinker_miot_multi_query_init(blinker_callback_with_int32_arg_t func)
+{
+    _MIOTQueryFunc_m = func;
+}
+
+void blinker_miot_print(const blinker_miot_config_t *config)
+{
+    cJSON *pValue = cJSON_CreateObject();
+
+    if (config->power_state) cJSON_AddStringToObject(pValue, BLINKER_CMD_POWERSTATE, config->power_state);
+    if (config->num) cJSON_AddStringToObject(pValue, "num", config->num);
+    if (config->color) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLOR, config->color);
+    if (config->color) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLOR_, config->color);
+    if (config->mode) cJSON_AddStringToObject(pValue, BLINKER_CMD_MODE, config->mode);
+    if (config->color_temp) cJSON_AddStringToObject(pValue, BLINKER_CMD_COLORTEMP, config->color_temp);
+    if (config->brightness) cJSON_AddStringToObject(pValue, BLINKER_CMD_BRIGHTNESS, config->brightness);
+    if (config->temp) cJSON_AddStringToObject(pValue, BLINKER_CMD_TEMP, config->temp);
+    if (config->humi) cJSON_AddStringToObject(pValue, BLINKER_CMD_HUMI, config->humi);
+    if (config->pm25) cJSON_AddStringToObject(pValue, BLINKER_CMD_PM25, config->pm25);
+    if (config->co2) cJSON_AddStringToObject(pValue, BLINKER_CMD_CO2, config->co2);
+
+    char _data[BLINKER_MAX_SEND_SIZE] = {0};
+    cJSON_PrintPreallocated(pValue, _data, BLINKER_MAX_SEND_SIZE, 0);
+    blinker_miot_mqtt_print(_data);
+
+    cJSON_Delete(pValue);
+}
+
 void blinker_attach_data(blinker_callback_with_json_arg_t func)
 {
     data_availablie_func = func;
@@ -67,7 +315,7 @@ int8_t check_string_num(const char *name, const blinker_widgets_str_t *c, uint8_
     {
         if (strcmp(c[cNum].name, name) == 0)
         {
-            // BLINKER_LOG(TAG, "check_string_num, name: %s, num: %d", name, cNum);
+            // BLINKER_LOG_ALL(TAG, "check_string_num, name: %s, num: %d", name, cNum);
             return cNum;
         }
     }
@@ -81,7 +329,7 @@ int8_t check_rgb_num(const char *name, const blinker_widgets_rgb_t *c, uint8_t c
     {
         if (strcmp(c[cNum].name, name) == 0)
         {
-            // BLINKER_LOG(TAG, "check_rgb_num, name: %s, num: %d", name, cNum);
+            // BLINKER_LOG_ALL(TAG, "check_rgb_num, name: %s, num: %d", name, cNum);
             return cNum;
         }
     }
@@ -95,7 +343,7 @@ int8_t check_int_num(const char *name, const blinker_widgets_int_t *c, uint8_t c
     {
         if (strcmp(c[cNum].name, name) == 0)
         {
-            // BLINKER_LOG(TAG, "check_rgb_num, name: %s, num: %d", name, cNum);
+            // BLINKER_LOG_ALL(TAG, "check_rgb_num, name: %s, num: %d", name, cNum);
             return cNum;
         }
     }
@@ -109,7 +357,7 @@ int8_t check_tab_num(const char *name, const blinker_widgets_tab_t *c, uint8_t c
     {
         if (strcmp(c[cNum].name, name) == 0)
         {
-            // BLINKER_LOG(TAG, "check_rgb_num, name: %s, num: %d", name, cNum);
+            // BLINKER_LOG_ALL(TAG, "check_rgb_num, name: %s, num: %d", name, cNum);
             return cNum;
         }
     }
@@ -302,7 +550,7 @@ void blinker_rgb_print(const BlinkerRGB *rgb, const blinker_rgb_config_t * confi
 
     // cJSON_AddRawToObject(pValue, BLINKER_CMD_RGB, data);
 
-    // BLINKER_LOG(TAG, "%s", cJSON_PrintUnformatted(pValue));
+    // BLINKER_LOG_ALL(TAG, "%s", cJSON_PrintUnformatted(pValue));
 
     // cJSON_Delete(pValue);
 
@@ -360,7 +608,7 @@ void blinker_tab_print(const BlinkerTab *tab, const blinker_tab_config_t * confi
 
     // cJSON_AddRawToObject(pValue, BLINKER_CMD_RGB, data);
 
-    // BLINKER_LOG(TAG, "%s", cJSON_PrintUnformatted(pValue));
+    // BLINKER_LOG_ALL(TAG, "%s", cJSON_PrintUnformatted(pValue));
     char _data[128] = {0};
     cJSON_PrintPreallocated(pValue, _data, 128, 0);
     print(tab->name, _data, 0);
@@ -414,7 +662,7 @@ void blinker_tab_init(BlinkerTab *tab, blinker_callback_with_tab_arg_t _func, bl
 
 void widget_string_parse(const char *_wName, cJSON *data)
 {
-    BLINKER_LOG(TAG, "_Widgets_str _wName: %s", _wName);
+    BLINKER_LOG_ALL(TAG, "_Widgets_str _wName: %s", _wName);
 
     int8_t num = check_string_num(_wName, _Widgets_str, _wCount_str);
 
@@ -422,7 +670,7 @@ void widget_string_parse(const char *_wName, cJSON *data)
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(data, _wName);
 
-    BLINKER_LOG(TAG, "_Widgets_str num: %d", num);
+    BLINKER_LOG_ALL(TAG, "_Widgets_str num: %d", num);
 
     if (cJSON_IsString(state) && (state->valuestring != NULL))
     {
@@ -442,7 +690,7 @@ void widget_string_parse(const char *_wName, cJSON *data)
 
 void widget_rgb_parse(const char *_wName, cJSON *data)
 {
-    BLINKER_LOG(TAG, "_Widgets_rgb _wName: %s", _wName);
+    BLINKER_LOG_ALL(TAG, "_Widgets_rgb _wName: %s", _wName);
 
     int8_t num = check_rgb_num(_wName, _Widgets_rgb, _wCount_rgb);
 
@@ -450,7 +698,7 @@ void widget_rgb_parse(const char *_wName, cJSON *data)
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(data, _wName);
 
-    BLINKER_LOG(TAG, "_Widgets_rgb num: %d", num);
+    BLINKER_LOG_ALL(TAG, "_Widgets_rgb num: %d", num);
 
     if (state != NULL && cJSON_IsArray(state))
     {
@@ -470,7 +718,7 @@ void widget_rgb_parse(const char *_wName, cJSON *data)
 
 void widget_int_parse(const char *_wName, cJSON *data)
 {
-    BLINKER_LOG(TAG, "_Widgets_int _wName: %s", _wName);
+    BLINKER_LOG_ALL(TAG, "_Widgets_int _wName: %s", _wName);
 
     int8_t num = check_int_num(_wName, _Widgets_int, _wCount_int);
 
@@ -478,7 +726,7 @@ void widget_int_parse(const char *_wName, cJSON *data)
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(data, _wName);
 
-    BLINKER_LOG(TAG, "_Widgets_int num: %d", num);
+    BLINKER_LOG_ALL(TAG, "_Widgets_int num: %d", num);
 
     if (state != NULL && cJSON_IsNumber(state))
     {
@@ -498,7 +746,7 @@ void widget_int_parse(const char *_wName, cJSON *data)
 
 void widget_tab_parse(const char *_wName, cJSON *data)
 {
-    BLINKER_LOG(TAG, "_Widgets_tab _wName: %s", _wName);
+    BLINKER_LOG_ALL(TAG, "_Widgets_tab _wName: %s", _wName);
 
     int8_t num = check_tab_num(_wName, _Widgets_tab, _wCount_tab);
 
@@ -506,7 +754,7 @@ void widget_tab_parse(const char *_wName, cJSON *data)
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(data, _wName);
 
-    BLINKER_LOG(TAG, "_Widgets_tab num: %d", num);
+    BLINKER_LOG_ALL(TAG, "_Widgets_tab num: %d", num);
 
     if (state != NULL && cJSON_IsString(state))
     {
@@ -604,7 +852,7 @@ void check_format(void)
 
 void auto_format_data(const char * key, const char * value, int8_t isRaw)
 {
-    BLINKER_LOG(TAG, "auto_format_data key: %s, value: %s", key, value);
+    BLINKER_LOG_ALL(TAG, "auto_format_data key: %s, value: %s", key, value);
 
     if (strlen(send_buf))
     {
@@ -629,17 +877,17 @@ void auto_format_data(const char * key, const char * value, int8_t isRaw)
             if (isRaw) 
             {
                 cJSON_AddRawToObject(root, key, value);
-                BLINKER_LOG(TAG, "cJSON_AddRawToObject");
+                BLINKER_LOG_ALL(TAG, "cJSON_AddRawToObject");
             }
             else 
             {
                 cJSON_AddStringToObject(root, key, value);
-                BLINKER_LOG(TAG, "cJSON_AddStringToObject");
+                BLINKER_LOG_ALL(TAG, "cJSON_AddStringToObject");
             }
         }
 
         cJSON_PrintPreallocated(root, send_buf, BLINKER_MAX_SEND_SIZE, 0);
-        BLINKER_LOG(TAG, "auto_format_data2: %s", send_buf);
+        BLINKER_LOG_ALL(TAG, "auto_format_data2: %s", send_buf);
         cJSON_Delete(root);
     }
     else
@@ -656,17 +904,17 @@ void auto_format_data(const char * key, const char * value, int8_t isRaw)
             if (isRaw) 
             {
                 cJSON_AddRawToObject(root, key, value);
-                BLINKER_LOG(TAG, "cJSON_AddRawToObject");
+                BLINKER_LOG_ALL(TAG, "cJSON_AddRawToObject");
             }
             else 
             {
                 cJSON_AddStringToObject(root, key, value);
-                BLINKER_LOG(TAG, "cJSON_AddStringToObject");
+                BLINKER_LOG_ALL(TAG, "cJSON_AddStringToObject");
             }
         }
 
         cJSON_PrintPreallocated(root, send_buf, BLINKER_MAX_SEND_SIZE, 0);
-        BLINKER_LOG(TAG, "auto_format_data2: %s", send_buf);
+        BLINKER_LOG_ALL(TAG, "auto_format_data2: %s", send_buf);
         cJSON_Delete(root);
     }
 }
@@ -689,7 +937,9 @@ void check_auto_format(void)
         {
             if (strlen(send_buf))
             {
-                blinker_mqtt_print(send_buf);
+                uint8_t need_check = 1;
+                if (strstr(send_buf, BLINKER_CMD_ONLINE)) need_check = 0;
+                blinker_mqtt_print(send_buf, need_check);
             }
             free(send_buf);
             send_buf = NULL;
@@ -701,15 +951,43 @@ void check_auto_format(void)
 
 void default_init(const char * key, const char * ssid, const char * pswd)
 {
-    BLINKER_LOG(TAG, "KEY: %s, SSID: %s, PSWD: %s", key, ssid, pswd);
+    BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", key, ssid, pswd);
     wifi_init_sta(key, ssid, pswd, parse);
+    https_test();
+    run();
+}
+
+void smart_init(const char * key)
+{
+    BLINKER_LOG_ALL(TAG, "KEY: %s", key);
+    wifi_init_smart(key);
     https_test();
     run();
 }
 
 void blinker_init(const blinker_config_t *_conf)
 {
-    Blinker.begin = default_init;
+    if (_conf->wifi == BLINKER_DEFAULT_CONFIG)
+    {
+        Blinker.begin = default_init;
+    }
+    else
+    {
+        Blinker.begin = smart_init;
+    }
+    
+    if (_conf->aligenie != NULL)
+    {
+        ali_type(_conf->aligenie, aligenie_parse);
+    }
+    if (_conf->dueros != NULL)
+    {
+        duer_type(_conf->dueros, dueros_parse);
+    }
+    if (_conf->miot != NULL)
+    {
+        mi_type(_conf->miot, miot_parse);
+    }
 }
 
 xTaskHandle pvCreatedTask_ToggleLed4;
@@ -745,9 +1023,9 @@ void heart_beat(cJSON *_data)
     cJSON_Delete(_state);
 }
 
-void parse(const char * data)
+void parse(const char *data)
 {
-    BLINKER_LOG(TAG, "parse get data: %s", data);
+    BLINKER_LOG_ALL(TAG, "parse get data: %s", data);
 
     _parsed = 0;
 
@@ -778,6 +1056,389 @@ void parse(const char * data)
     flush();
 }
 
+void aligenie_parse(const char *data)
+{
+    BLINKER_LOG_ALL(TAG, "aligenie parse get data: %s", data);
+
+    cJSON *root = cJSON_Parse(data);
+
+    if (root == NULL) 
+    {
+        cJSON_Delete(root);
+        return;
+    }
+
+    cJSON *_data = cJSON_GetObjectItemCaseSensitive(root, "data");
+
+    cJSON *_get = cJSON_GetObjectItemCaseSensitive(_data, "get");
+    cJSON *_set = cJSON_GetObjectItemCaseSensitive(_data, "set");
+
+    if (_get != NULL && cJSON_IsString(_get) && (_get->valuestring != NULL))
+    {
+        if (strcmp(_get->valuestring, BLINKER_CMD_STATE) == 0)
+        {
+            cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_data, "num");
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_ALL_NUMBER);
+            if (_AliGenieQueryFunc_m)
+            {
+                if (_setNum != NULL && cJSON_IsNumber(_setNum))
+                {
+                    _AliGenieQueryFunc_m(BLINKER_CMD_QUERY_ALL_NUMBER, _setNum->valueint);
+                }
+            }
+            cJSON_Delete(_setNum);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_POWERSTATE) == 0) {
+            cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_data, "num");
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_POWERSTATE_NUMBER);
+            if (_AliGenieQueryFunc_m)
+            {
+                if (_setNum != NULL && cJSON_IsNumber(_setNum))
+                {
+                    _AliGenieQueryFunc_m(BLINKER_CMD_QUERY_POWERSTATE_NUMBER, _setNum->valueint);
+                }
+            }
+            cJSON_Delete(_setNum);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_COLOR) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_COLOR_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_COLOR_) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_COLOR_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_COLORTEMP) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_COLORTEMP_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_BRIGHTNESS) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_BRIGHTNESS_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_TEMP) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_TEMP_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_HUMI) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_HUMI_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_PM25) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_PM25_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_MODE) == 0) {
+            if (_AliGenieQueryFunc) _AliGenieQueryFunc(BLINKER_CMD_QUERY_MODE_NUMBER);
+        }
+    }
+    else if (_set != NULL)
+    {
+        cJSON *_power_state = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_POWERSTATE);
+        cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_set, "num");
+        cJSON *_color = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLOR);
+        cJSON *_color1 = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLOR_);
+        cJSON *_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_BRIGHTNESS);
+        cJSON *_up_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_UPBRIGHTNESS);
+        cJSON *_down_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_DOWNBRIGHTNESS);
+        cJSON *_color_temp = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLORTEMP);
+        cJSON *_up_color_temp = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_UPCOLORTEMP);
+        cJSON *_down_color_temp = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_DOWNCOLORTEMP);
+        cJSON *_mode = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_MODE);
+        cJSON *_cmode = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_CANCELMODE);
+
+        if (_power_state != NULL && cJSON_IsString(_power_state) && (_power_state->valuestring != NULL))
+        {
+            if (_AliGeniePowerStateFunc)
+            {
+                _AliGeniePowerStateFunc(_power_state->valuestring);
+            }
+            if (_AliGeniePowerStateFunc_m)
+            {
+                _AliGeniePowerStateFunc_m(_power_state->valuestring, _setNum->valueint);
+            }                
+        }
+        else if (_color != NULL && cJSON_IsString(_color))
+        {
+            if (_AliGenieSetColorFunc) _AliGenieSetColorFunc(_color->valuestring);
+        }
+        else if (_color1 != NULL && cJSON_IsString(_color1))
+        {
+            if (_AliGenieSetColorFunc) _AliGenieSetColorFunc(_color1->valuestring);
+        }
+        else if (_bright != NULL && cJSON_IsNumber(_bright))
+        {
+            if (_AliGenieSetBrightnessFunc) _AliGenieSetBrightnessFunc(_bright->valueint);
+        }
+        else if (_up_bright != NULL && cJSON_IsNumber(_up_bright))
+        {
+            if (_AliGenieSetRelativeBrightnessFunc) _AliGenieSetRelativeBrightnessFunc(_up_bright->valueint);
+        }
+        else if (_down_bright != NULL && cJSON_IsNumber(_down_bright))
+        {
+            if (_AliGenieSetRelativeBrightnessFunc) _AliGenieSetRelativeBrightnessFunc(_down_bright->valueint);
+        }
+        else if (_color_temp != NULL && cJSON_IsNumber(_color_temp))
+        {
+            if (_AliGenieSetColorTemperature) _AliGenieSetColorTemperature(_color_temp->valueint);
+        }
+        else if (_up_color_temp != NULL && cJSON_IsNumber(_up_color_temp))
+        {
+            if (_AliGenieSetRelativeColorTemperature) _AliGenieSetRelativeColorTemperature(_up_color_temp->valueint);
+        }
+        else if (_down_color_temp != NULL && cJSON_IsNumber(_down_color_temp))
+        {
+            if (_AliGenieSetRelativeColorTemperature) _AliGenieSetRelativeColorTemperature(_down_color_temp->valueint);
+        }
+        else if (_mode != NULL && cJSON_IsString(_mode))
+        {
+            if (_AliGenieSetModeFunc) _AliGenieSetModeFunc(_mode->valuestring);
+        }
+        else if (_cmode != NULL && cJSON_IsString(_cmode))
+        {
+            if (_AliGenieSetcModeFunc) _AliGenieSetcModeFunc(_cmode->valuestring);
+        }
+    }
+
+    cJSON_Delete(root);
+}
+
+void dueros_parse(const char *data)
+{
+    BLINKER_LOG_ALL(TAG, "aligenie parse get data: %s", data);
+
+    cJSON *root = cJSON_Parse(data);
+
+    if (root == NULL) 
+    {
+        cJSON_Delete(root);
+        return;
+    }
+
+    cJSON *_data = cJSON_GetObjectItemCaseSensitive(root, "data");
+
+    cJSON *_get = cJSON_GetObjectItemCaseSensitive(_data, "get");
+    cJSON *_set = cJSON_GetObjectItemCaseSensitive(_data, "set");
+
+    if (_get != NULL && cJSON_IsString(_get) && (_get->valuestring != NULL))
+    {
+        if (strcmp(_get->valuestring, BLINKER_CMD_AQI) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_AQI_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_PM25) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_PM25_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_PM10) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_PM10_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_CO2) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_CO2_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_TEMP) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_TEMP_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_HUMI) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_HUMI_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_MODE) == 0) {
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_MODE_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_TIME_ALL) == 0)
+        {
+            cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_data, "num");
+            if (_DuerOSQueryFunc) _DuerOSQueryFunc(BLINKER_CMD_QUERY_TIME_NUMBER);
+            if (_DuerOSQueryFunc_m)
+            {
+                if (_setNum != NULL && cJSON_IsNumber(_setNum))
+                {
+                    _DuerOSQueryFunc_m(BLINKER_CMD_QUERY_TIME_NUMBER, _setNum->valueint);
+                }
+            }
+            cJSON_Delete(_setNum);
+        }
+    }
+    else if (_set != NULL)
+    {
+        cJSON *_power_state = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_POWERSTATE);
+        cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_set, "num");
+        cJSON *_color = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLOR);
+        cJSON *_color1 = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLOR_);
+        cJSON *_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_BRIGHTNESS);
+        cJSON *_up_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_UPBRIGHTNESS);
+        cJSON *_down_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_DOWNBRIGHTNESS);
+        cJSON *_mode = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_MODE);
+        cJSON *_cmode = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_CANCELMODE);
+
+        if (_power_state != NULL && cJSON_IsString(_power_state) && (_power_state->valuestring != NULL))
+        {
+            if (_DuerOSPowerStateFunc)
+            {
+                _DuerOSPowerStateFunc(_power_state->valuestring);
+            }
+            if (_DuerOSPowerStateFunc_m)
+            {
+                _DuerOSPowerStateFunc_m(_power_state->valuestring, _setNum->valueint);
+            }                
+        }
+        else if (_color != NULL && cJSON_IsString(_color))
+        {
+            if (_DuerOSSetColorFunc) _DuerOSSetColorFunc(_color->valuestring);
+        }
+        else if (_color1 != NULL && cJSON_IsString(_color1))
+        {
+            if (_DuerOSSetColorFunc) _DuerOSSetColorFunc(_color1->valuestring);
+        }
+        else if (_bright != NULL && cJSON_IsNumber(_bright))
+        {
+            if (_DuerOSSetBrightnessFunc) _DuerOSSetBrightnessFunc(_bright->valueint);
+        }
+        else if (_up_bright != NULL && cJSON_IsNumber(_up_bright))
+        {
+            if (_DuerOSSetRelativeBrightnessFunc) _DuerOSSetRelativeBrightnessFunc(_up_bright->valueint);
+        }
+        else if (_down_bright != NULL && cJSON_IsNumber(_down_bright))
+        {
+            if (_DuerOSSetRelativeBrightnessFunc) _DuerOSSetRelativeBrightnessFunc(_down_bright->valueint);
+        }
+        else if (_mode != NULL && cJSON_IsString(_mode))
+        {
+            if (_DuerOSSetModeFunc) _DuerOSSetModeFunc(_mode->valuestring);
+        }
+        else if (_cmode != NULL && cJSON_IsString(_cmode))
+        {
+            if (_DuerOSSetcModeFunc) _DuerOSSetcModeFunc(_cmode->valuestring);
+        }
+    }
+
+    cJSON_Delete(root);
+}
+
+void miot_parse(const char *data)
+{
+    BLINKER_LOG_ALL(TAG, "miot parse get data: %s", data);
+
+    cJSON *root = cJSON_Parse(data);
+
+    if (root == NULL) 
+    {
+        cJSON_Delete(root);
+        return;
+    }
+
+    cJSON *_data = cJSON_GetObjectItemCaseSensitive(root, "data");
+
+    cJSON *_get = cJSON_GetObjectItemCaseSensitive(_data, "get");
+    cJSON *_set = cJSON_GetObjectItemCaseSensitive(_data, "set");
+
+    if (_get != NULL && cJSON_IsString(_get) && (_get->valuestring != NULL))
+    {
+        if (strcmp(_get->valuestring, BLINKER_CMD_STATE) == 0)
+        {
+            cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_data, "num");
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_ALL_NUMBER);
+            if (_MIOTQueryFunc_m)
+            {
+                if (_setNum != NULL && cJSON_IsNumber(_setNum))
+                {
+                    _MIOTQueryFunc_m(BLINKER_CMD_QUERY_ALL_NUMBER, _setNum->valueint);
+                }
+            }
+            cJSON_Delete(_setNum);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_POWERSTATE) == 0) {
+            cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_data, "num");
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_POWERSTATE_NUMBER);
+            if (_MIOTQueryFunc_m)
+            {
+                if (_setNum != NULL && cJSON_IsNumber(_setNum))
+                {
+                    _MIOTQueryFunc_m(BLINKER_CMD_QUERY_POWERSTATE_NUMBER, _setNum->valueint);
+                }
+            }
+            cJSON_Delete(_setNum);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_COLOR) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_COLOR_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_COLOR_) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_COLOR_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_COLORTEMP) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_COLORTEMP_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_BRIGHTNESS) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_BRIGHTNESS_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_TEMP) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_TEMP_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_HUMI) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_HUMI_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_PM25) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_PM25_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_PM25) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_PM25_NUMBER);
+        }
+        else if (strcmp(_get->valuestring, BLINKER_CMD_MODE) == 0) {
+            if (_MIOTQueryFunc) _MIOTQueryFunc(BLINKER_CMD_QUERY_MODE_NUMBER);
+        }
+    }
+    else if (_set != NULL)
+    {
+        cJSON *_power_state = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_POWERSTATE);
+        cJSON *_setNum = cJSON_GetObjectItemCaseSensitive(_set, "num");
+        cJSON *_color = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLOR);
+        cJSON *_color1 = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLOR_);
+        cJSON *_bright = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_BRIGHTNESS);
+        cJSON *_color_temp = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_COLORTEMP);
+        cJSON *_mode = cJSON_GetObjectItemCaseSensitive(_set, BLINKER_CMD_MODE);
+
+        if (_power_state != NULL && cJSON_IsBool(_power_state))
+        {
+            if (_MIOTPowerStateFunc)
+            {
+                if (cJSON_IsTrue(_power_state))
+                {
+                    _MIOTPowerStateFunc("True");
+                }
+                else
+                {
+                    _MIOTPowerStateFunc("False");
+                }
+                
+            }
+            if (_MIOTPowerStateFunc_m)
+            {
+                if (cJSON_IsTrue(_power_state))
+                {
+                    _MIOTPowerStateFunc_m("true", _setNum->valueint);
+                }
+                else
+                {
+                    _MIOTPowerStateFunc_m("false", _setNum->valueint);
+                }
+            }                
+        }
+        else if (_color != NULL && cJSON_IsNumber(_color))
+        {
+            if (_MIOTSetColorFunc) _MIOTSetColorFunc(_color->valueint);
+        }
+        else if (_color1 != NULL && cJSON_IsNumber(_color1))
+        {
+            if (_MIOTSetColorFunc) _MIOTSetColorFunc(_color1->valueint);
+        }
+        else if (_bright != NULL && cJSON_IsNumber(_bright))
+        {
+            if (_MIOTSetBrightnessFunc) _MIOTSetBrightnessFunc(_bright->valueint);
+        }
+        else if (_color_temp != NULL && cJSON_IsNumber(_color_temp))
+        {
+            if (_MIOTSetColorTemperature) _MIOTSetColorTemperature(_color_temp->valueint);
+        }
+        else if (_mode != NULL && cJSON_IsNumber(_mode))
+        {
+            if (_MIOTSetModeFunc) _MIOTSetModeFunc(_mode->valueint);
+        }
+    }
+
+    cJSON_Delete(root);
+}
+
 void blinker_run(void* pv)
 {
     while(1)
@@ -789,7 +1450,7 @@ void blinker_run(void* pv)
         //     // char data[1024];
         //     // strcpy(data, last_read());
 
-        //     BLINKER_LOG(TAG, "get data: %d", strlen(last_read()));
+        //     BLINKER_LOG_ALL(TAG, "get data: %d", strlen(last_read()));
 
         //     // TaskHandle_t TaskHandle;    
         //     // TaskStatus_t TaskStatus;
@@ -802,15 +1463,15 @@ void blinker_run(void* pv)
         //     //             (BaseType_t    )pdTRUE,            //允许统计任务堆栈历史最小剩余大小
         //     //             (eTaskState    )eInvalid);         //函数自己获取任务运行壮态
 
-        //     // BLINKER_LOG(TAG, "任务名:                %s\r\n",TaskStatus.pcTaskName);
-        //     // BLINKER_LOG(TAG, "任务编号:              %d\r\n",(int)TaskStatus.xTaskNumber);
-        //     // BLINKER_LOG(TAG, "任务壮态:              %d\r\n",TaskStatus.eCurrentState);
-        //     // BLINKER_LOG(TAG, "任务当前优先级:        %d\r\n",(int)TaskStatus.uxCurrentPriority);
-        //     // BLINKER_LOG(TAG, "任务基优先级:          %d\r\n",(int)TaskStatus.uxBasePriority);
-        //     // BLINKER_LOG(TAG, "任务堆栈基地址:        %#x\r\n",(int)TaskStatus.pxStackBase);
-        //     // BLINKER_LOG(TAG, "任务堆栈历史剩余最小值: %d\r\n",TaskStatus.usStackHighWaterMark);
+        //     // BLINKER_LOG_ALL(TAG, "任务名:                %s\r\n",TaskStatus.pcTaskName);
+        //     // BLINKER_LOG_ALL(TAG, "任务编号:              %d\r\n",(int)TaskStatus.xTaskNumber);
+        //     // BLINKER_LOG_ALL(TAG, "任务壮态:              %d\r\n",TaskStatus.eCurrentState);
+        //     // BLINKER_LOG_ALL(TAG, "任务当前优先级:        %d\r\n",(int)TaskStatus.uxCurrentPriority);
+        //     // BLINKER_LOG_ALL(TAG, "任务基优先级:          %d\r\n",(int)TaskStatus.uxBasePriority);
+        //     // BLINKER_LOG_ALL(TAG, "任务堆栈基地址:        %#x\r\n",(int)TaskStatus.pxStackBase);
+        //     // BLINKER_LOG_ALL(TAG, "任务堆栈历史剩余最小值: %d\r\n",TaskStatus.usStackHighWaterMark);
         //     unsigned portBASE_TYPE xHighWaterMark = uxTaskGetStackHighWaterMark( pvCreatedTask_ToggleLed4 );
-        //     BLINKER_LOG(TAG, "ToggleLed4: %ld", xHighWaterMark);
+        //     BLINKER_LOG_ALL(TAG, "ToggleLed4: %ld", xHighWaterMark);
 
         //     parse(last_read());
         // }
