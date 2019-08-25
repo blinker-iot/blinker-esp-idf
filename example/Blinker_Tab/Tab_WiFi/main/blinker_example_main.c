@@ -1,0 +1,144 @@
+/* *****************************************************************
+ *
+ * Download latest Blinker library here:
+ * https://github.com/blinker-iot/blinker-freertos/archive/master.zip
+ * 
+ * 
+ * Blinker is a cross-hardware, cross-platform solution for the IoT. 
+ * It provides APP, device and server support, 
+ * and uses public cloud services for data transmission and storage.
+ * It can be used in smart home, data monitoring and other fields 
+ * to help users build Internet of Things projects better and faster.
+ * 
+ * Docs: https://doc.blinker.app/
+ *       https://github.com/blinker-iot/blinker-doc/wiki
+ * 
+ * *****************************************************************
+ * 
+ * Blinker 库下载地址:
+ * https://github.com/blinker-iot/blinker-freertos/archive/master.zip
+ * 
+ * Blinker 是一套跨硬件、跨平台的物联网解决方案，提供APP端、设备端、
+ * 服务器端支持，使用公有云服务进行数据传输存储。可用于智能家居、
+ * 数据监测等领域，可以帮助用户更好更快地搭建物联网项目。
+ * 
+ * 文档: https://doc.blinker.app/
+ *       https://github.com/blinker-iot/blinker-doc/wiki
+ * 
+ * *****************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "Blinker.h"
+
+static const char *TAG = "blinker";
+
+char auth[] = "Your Device Secret Key";
+char ssid[] = "Your WiFi network SSID or name";
+char pswd[] = "Your WiFi network WPA password or WEP key";
+
+BlinkerButton button1 = {.name = "btn-abc"};
+BlinkerNumber number1 = {.name = "num-abc"};
+BlinkerTab tab1 = {.name = "tabkey"};
+
+int counter = 0;
+
+void tab1_callback(uint8_t tab_set)
+{
+    BLINKER_LOG(TAG, "get tab set: %d", tab_set);
+
+    switch (tab_set)
+    {
+        case BLINKER_CMD_TAB_0 :
+            tab[0] = 1;
+            BLINKER_LOG(TAG, "tab 0 set");
+            break;
+        case BLINKER_CMD_TAB_1 :
+            tab[1] = 1;
+            BLINKER_LOG(TAG, "tab 1 set");
+            break;
+        case BLINKER_CMD_TAB_2 :
+            tab[2] = 1;
+            BLINKER_LOG(TAG, "tab 2 set");
+            break;
+        case BLINKER_CMD_TAB_3 :
+            tab[3] = 1;
+            BLINKER_LOG(TAG, "tab 3 set");
+            break;
+        case BLINKER_CMD_TAB_4 :
+            tab[4] = 1;
+            BLINKER_LOG(TAG, "tab 4 set");
+            break;
+        default:
+            break;
+    }
+
+    
+}
+
+void tab1_feedback()
+{
+    blinker_tab_config_t config;
+
+    for(uint8_t num = 0; num < 5; num++)
+    {
+        if (tab[num])
+        {
+            BLINKER_LOG(TAG, "tab %d set", num);
+            config.tab[num] = 1;
+            tab[num] = 0;
+        }
+        else
+        {
+            config.tab[num] = 0;
+        }        
+    }
+
+    blinker_tab_print(&tab1, &config);
+}
+
+void button1_callback(const char *data)
+{
+    BLINKER_LOG(TAG, "get button data: %s", data);
+
+    blinker_button_config_t config = {
+        .icon = "fas fa-alicorn",
+        .color = "0xFF",
+        .text1 = "test",
+    };
+
+    blinker_button_print(&button1, &config);
+}
+
+void data_callback(const cJSON *data)
+{
+    BLINKER_LOG(TAG, "get json data");
+
+    counter++;
+
+    char count[10];
+    sprintf(count, "%d", counter);
+
+    blinker_number_config_t config = {
+        .value = count,
+    };
+
+    blinker_number_print(&number1, &config);
+}
+
+void app_main()
+{
+    BLINKER_DEBUG_ALL();
+    blinker_config_t init_conf = {
+        .type = BLINKER_WIFI,
+        .wifi = BLINKER_DEFAULT_CONFIG,
+    };
+    blinker_init(&init_conf);
+    blinker_button_init(&button1, button1_callback);
+    blinker_tab_init(&tab1, tab1_callback, tab1_feedback);
+    blinker_attach_data(data_callback);
+
+    Blinker.begin(auth, ssid, pswd);
+}
