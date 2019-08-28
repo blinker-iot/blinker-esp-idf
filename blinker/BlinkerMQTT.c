@@ -18,15 +18,6 @@
 #include "lwip/apps/sntp.h"
 #include "wolfssl/ssl.h"
 
-// #include "mbedtls/platform.h"
-// #include "mbedtls/net_sockets.h"
-// #include "mbedtls/esp_debug.h"
-// #include "mbedtls/ssl.h"
-// #include "mbedtls/entropy.h"
-// #include "mbedtls/ctr_drbg.h"
-// #include "mbedtls/error.h"
-// #include "mbedtls/certs.h"
-
 #include "esp_http_client.h"
 #include "mqtt_client.h"
 
@@ -67,14 +58,13 @@ enum smartconfig_step_t sconf_step = sconf_ap_init;
 
 #define WOLFSSL_DEMO_SNTP_SERVERS       "pool.ntp.org"
 
-const char send_data[] = REQUEST;
-const int32_t send_bytes = sizeof(send_data);
+// const char send_data[] = REQUEST;
+// const int32_t send_bytes = sizeof(send_data);
 
-#define BLINKER_SERVER "iotdev.clz.me"
-#define BLINKER_SERVER_PORT 443
 const char* blinker_authkey;
 char* https_request_data;
 int32_t https_request_bytes = 0;
+uint8_t blinker_https_type = BLINKER_CMD_DEFAULT_NUMBER;
 // char recv_data[1024] = {0};
 
 char*       MQTT_HOST_MQTT;
@@ -776,7 +766,7 @@ void wolfssl_client(void)
 
         /*get addr info for hostname*/
         do {
-            entry = gethostbyname(BLINKER_SERVER);
+            entry = gethostbyname(BLINKER_SERVER_HOST);
             vTaskDelay(xDelay);
         } while (entry == NULL);
 
@@ -823,11 +813,11 @@ void wolfssl_client(void)
         sock_addr.sin_port = htons(BLINKER_SERVER_PORT);
         sock_addr.sin_addr.s_addr = ((struct in_addr*)(entry->h_addr))->s_addr;
 
-        BLINKER_LOG_ALL(TAG, "Connecting to %s:%d...\n", BLINKER_SERVER, BLINKER_SERVER_PORT);
+        BLINKER_LOG_ALL(TAG, "Connecting to %s:%d...\n", BLINKER_SERVER_HOST, BLINKER_SERVER_PORT);
         ret = connect(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
 
         if (ret) {
-            BLINKER_LOG_ALL(TAG, "Connecting to %s:%d failed: %d\n", BLINKER_SERVER, BLINKER_SERVER_PORT, ret);
+            BLINKER_LOG_ALL(TAG, "Connecting to %s:%d failed: %d\n", BLINKER_SERVER_HOST, BLINKER_SERVER_PORT, ret);
             goto failed3;
         }
 
@@ -911,112 +901,126 @@ failed1:
         BLINKER_LOG_ALL(TAG, "payload: %s", payload);
         BLINKER_LOG_ALL(TAG, "==============================");
 
-        // BLINKER_LOG_ALL(TAG, "check isJson");
-        if (check_register_data(payload))
+        switch (blinker_https_type)
         {
-            cJSON *root = cJSON_Parse(payload);
-        
-            cJSON *detail = cJSON_GetObjectItemCaseSensitive(root, BLINKER_CMD_DETAIL);
-            cJSON *_userID = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_DEVICENAME);
-            cJSON *_userName = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_IOTID);
-            cJSON *_key = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_IOTTOKEN);
-            cJSON *_productInfo = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_PRODUCTKEY);
-            cJSON *_broker = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_BROKER);
-            cJSON *_uuid = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_UUID);
+            case BLINKER_CMD_DEVICE_REGISTER_NUMBER :
+                // BLINKER_LOG_ALL(TAG, "check isJson");
+                if (check_register_data(payload))
+                {
+                    cJSON *root = cJSON_Parse(payload);
+                
+                    cJSON *detail = cJSON_GetObjectItemCaseSensitive(root, BLINKER_CMD_DETAIL);
+                    cJSON *_userID = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_DEVICENAME);
+                    cJSON *_userName = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_IOTID);
+                    cJSON *_key = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_IOTTOKEN);
+                    cJSON *_productInfo = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_PRODUCTKEY);
+                    cJSON *_broker = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_BROKER);
+                    cJSON *_uuid = cJSON_GetObjectItemCaseSensitive(detail, BLINKER_CMD_UUID);
 
-            // if (cJSON_IsString(_userID) && (_userID->valuestring != NULL))
-            // {
-            //     BLINKER_LOG_ALL(TAG, "_userId: %s", _userID->valuestring);
-            // }
-            if (isMQTTinit)
-            {
-                free(MQTT_HOST_MQTT);
-                free(MQTT_ID_MQTT);
-                free(MQTT_NAME_MQTT);
-                free(MQTT_KEY_MQTT);
-                free(MQTT_PRODUCTINFO_MQTT);
-                free(UUID_MQTT);
-                free(DEVICE_NAME_MQTT);
-                free(BLINKER_PUB_TOPIC_MQTT);
-                free(BLINKER_SUB_TOPIC_MQTT);
+                    // if (cJSON_IsString(_userID) && (_userID->valuestring != NULL))
+                    // {
+                    //     BLINKER_LOG_ALL(TAG, "_userId: %s", _userID->valuestring);
+                    // }
 
-                isMQTTinit = 0;
-            }
+                    if (https_request_bytes != 0)
+                    {
+                        free(https_request_data);
+                        https_request_bytes = 0;
+                    }
 
-            if (strcmp(_broker->valuestring, BLINKER_MQTT_BORKER_ALIYUN) == 0)
-            {
-                BLINKER_LOG_ALL(TAG, "broker is aliyun");
+                    if (isMQTTinit)
+                    {
+                        free(MQTT_HOST_MQTT);
+                        free(MQTT_ID_MQTT);
+                        free(MQTT_NAME_MQTT);
+                        free(MQTT_KEY_MQTT);
+                        free(MQTT_PRODUCTINFO_MQTT);
+                        free(UUID_MQTT);
+                        free(DEVICE_NAME_MQTT);
+                        free(BLINKER_PUB_TOPIC_MQTT);
+                        free(BLINKER_SUB_TOPIC_MQTT);
 
-                DEVICE_NAME_MQTT = (char*)malloc((strlen(_userID->valuestring)+1)*sizeof(char));
-                strcpy(DEVICE_NAME_MQTT, _userID->valuestring);
-                MQTT_ID_MQTT = (char*)malloc((strlen(_userID->valuestring)+1)*sizeof(char));
-                strcpy(MQTT_ID_MQTT, _userID->valuestring);
-                MQTT_NAME_MQTT = (char*)malloc((strlen(_userName->valuestring)+1)*sizeof(char));
-                strcpy(MQTT_NAME_MQTT, _userName->valuestring);
-                MQTT_KEY_MQTT = (char*)malloc((strlen(_key->valuestring)+1)*sizeof(char));
-                strcpy(MQTT_KEY_MQTT, _key->valuestring);
-                MQTT_PRODUCTINFO_MQTT = (char*)malloc((strlen(_productInfo->valuestring)+1)*sizeof(char));
-                strcpy(MQTT_PRODUCTINFO_MQTT, _productInfo->valuestring);
-                MQTT_HOST_MQTT = (char*)malloc((strlen(BLINKER_MQTT_ALIYUN_HOST)+1)*sizeof(char));
-                strcpy(MQTT_HOST_MQTT, BLINKER_MQTT_ALIYUN_HOST);
-                MQTT_PORT_MQTT = BLINKER_MQTT_ALIYUN_PORT;
+                        isMQTTinit = 0;
+                    }
 
-                BLINKER_SUB_TOPIC_MQTT = (char*)malloc((1 + strlen(MQTT_PRODUCTINFO_MQTT) + \
-                                    1 + strlen(MQTT_ID_MQTT) + 3)*sizeof(char));
-                strcpy(BLINKER_SUB_TOPIC_MQTT, "/");
-                strcat(BLINKER_SUB_TOPIC_MQTT, MQTT_PRODUCTINFO_MQTT);
-                strcat(BLINKER_SUB_TOPIC_MQTT, "/");
-                strcat(BLINKER_SUB_TOPIC_MQTT, MQTT_ID_MQTT);                
-                strcat(BLINKER_SUB_TOPIC_MQTT, "/r");
+                    if (strcmp(_broker->valuestring, BLINKER_MQTT_BORKER_ALIYUN) == 0)
+                    {
+                        BLINKER_LOG_ALL(TAG, "broker is aliyun");
 
-                BLINKER_PUB_TOPIC_MQTT = (char*)malloc((1 + strlen(MQTT_PRODUCTINFO_MQTT) + \
-                                    1 + strlen(MQTT_ID_MQTT) + 3)*sizeof(char));
-                strcpy(BLINKER_PUB_TOPIC_MQTT, "/");
-                strcat(BLINKER_PUB_TOPIC_MQTT, MQTT_PRODUCTINFO_MQTT);
-                strcat(BLINKER_PUB_TOPIC_MQTT, "/");
-                strcat(BLINKER_PUB_TOPIC_MQTT, MQTT_ID_MQTT);                
-                strcat(BLINKER_PUB_TOPIC_MQTT, "/s");
-            }
+                        DEVICE_NAME_MQTT = (char*)malloc((strlen(_userID->valuestring)+1)*sizeof(char));
+                        strcpy(DEVICE_NAME_MQTT, _userID->valuestring);
+                        MQTT_ID_MQTT = (char*)malloc((strlen(_userID->valuestring)+1)*sizeof(char));
+                        strcpy(MQTT_ID_MQTT, _userID->valuestring);
+                        MQTT_NAME_MQTT = (char*)malloc((strlen(_userName->valuestring)+1)*sizeof(char));
+                        strcpy(MQTT_NAME_MQTT, _userName->valuestring);
+                        MQTT_KEY_MQTT = (char*)malloc((strlen(_key->valuestring)+1)*sizeof(char));
+                        strcpy(MQTT_KEY_MQTT, _key->valuestring);
+                        MQTT_PRODUCTINFO_MQTT = (char*)malloc((strlen(_productInfo->valuestring)+1)*sizeof(char));
+                        strcpy(MQTT_PRODUCTINFO_MQTT, _productInfo->valuestring);
+                        MQTT_HOST_MQTT = (char*)malloc((strlen(BLINKER_MQTT_ALIYUN_HOST)+1)*sizeof(char));
+                        strcpy(MQTT_HOST_MQTT, BLINKER_MQTT_ALIYUN_HOST);
+                        MQTT_PORT_MQTT = BLINKER_MQTT_ALIYUN_PORT;
 
-            UUID_MQTT = (char*)malloc((strlen(_uuid->valuestring)+1)*sizeof(char));
-            strcpy(UUID_MQTT, _uuid->valuestring);
+                        BLINKER_SUB_TOPIC_MQTT = (char*)malloc((1 + strlen(MQTT_PRODUCTINFO_MQTT) + \
+                                            1 + strlen(MQTT_ID_MQTT) + 3)*sizeof(char));
+                        strcpy(BLINKER_SUB_TOPIC_MQTT, "/");
+                        strcat(BLINKER_SUB_TOPIC_MQTT, MQTT_PRODUCTINFO_MQTT);
+                        strcat(BLINKER_SUB_TOPIC_MQTT, "/");
+                        strcat(BLINKER_SUB_TOPIC_MQTT, MQTT_ID_MQTT);                
+                        strcat(BLINKER_SUB_TOPIC_MQTT, "/r");
 
-            BLINKER_LOG_ALL(TAG, "====================");
-            BLINKER_LOG_ALL(TAG, "DEVICE_NAME_MQTT: %s", DEVICE_NAME_MQTT);
-            BLINKER_LOG_ALL(TAG, "MQTT_PRODUCTINFO_MQTT: %s", MQTT_PRODUCTINFO_MQTT);
-            BLINKER_LOG_ALL(TAG, "MQTT_ID_MQTT: %s", MQTT_ID_MQTT);
-            BLINKER_LOG_ALL(TAG, "MQTT_NAME_MQTT: %s", MQTT_NAME_MQTT);
-            BLINKER_LOG_ALL(TAG, "MQTT_KEY_MQTT: %s", MQTT_KEY_MQTT);
-            BLINKER_LOG_ALL(TAG, "MQTT_BROKER: %s", _broker->valuestring);
-            BLINKER_LOG_ALL(TAG, "HOST: %s", MQTT_HOST_MQTT);
-            BLINKER_LOG_ALL(TAG, "PORT: %d", MQTT_PORT_MQTT);
-            BLINKER_LOG_ALL(TAG, "UUID_MQTT: %s", UUID_MQTT);
-            BLINKER_LOG_ALL(TAG, "BLINKER_SUB_TOPIC_MQTT: %s", BLINKER_SUB_TOPIC_MQTT);
-            BLINKER_LOG_ALL(TAG, "BLINKER_PUB_TOPIC_MQTT: %s", BLINKER_PUB_TOPIC_MQTT);
-            BLINKER_LOG_ALL(TAG, "====================");
-            
-            isMQTTinit = 1;
+                        BLINKER_PUB_TOPIC_MQTT = (char*)malloc((1 + strlen(MQTT_PRODUCTINFO_MQTT) + \
+                                            1 + strlen(MQTT_ID_MQTT) + 3)*sizeof(char));
+                        strcpy(BLINKER_PUB_TOPIC_MQTT, "/");
+                        strcat(BLINKER_PUB_TOPIC_MQTT, MQTT_PRODUCTINFO_MQTT);
+                        strcat(BLINKER_PUB_TOPIC_MQTT, "/");
+                        strcat(BLINKER_PUB_TOPIC_MQTT, MQTT_ID_MQTT);                
+                        strcat(BLINKER_PUB_TOPIC_MQTT, "/s");
+                    }
 
-            xEventGroupSetBits(http_event_group, isMQTTinit);
-            
-            cJSON_Delete(root);
+                    UUID_MQTT = (char*)malloc((strlen(_uuid->valuestring)+1)*sizeof(char));
+                    strcpy(UUID_MQTT, _uuid->valuestring);
 
-            BLINKER_LOG_FreeHeap(TAG);
+                    BLINKER_LOG_ALL(TAG, "====================");
+                    BLINKER_LOG_ALL(TAG, "DEVICE_NAME_MQTT: %s", DEVICE_NAME_MQTT);
+                    BLINKER_LOG_ALL(TAG, "MQTT_PRODUCTINFO_MQTT: %s", MQTT_PRODUCTINFO_MQTT);
+                    BLINKER_LOG_ALL(TAG, "MQTT_ID_MQTT: %s", MQTT_ID_MQTT);
+                    BLINKER_LOG_ALL(TAG, "MQTT_NAME_MQTT: %s", MQTT_NAME_MQTT);
+                    BLINKER_LOG_ALL(TAG, "MQTT_KEY_MQTT: %s", MQTT_KEY_MQTT);
+                    BLINKER_LOG_ALL(TAG, "MQTT_BROKER: %s", _broker->valuestring);
+                    BLINKER_LOG_ALL(TAG, "HOST: %s", MQTT_HOST_MQTT);
+                    BLINKER_LOG_ALL(TAG, "PORT: %d", MQTT_PORT_MQTT);
+                    BLINKER_LOG_ALL(TAG, "UUID_MQTT: %s", UUID_MQTT);
+                    BLINKER_LOG_ALL(TAG, "BLINKER_SUB_TOPIC_MQTT: %s", BLINKER_SUB_TOPIC_MQTT);
+                    BLINKER_LOG_ALL(TAG, "BLINKER_PUB_TOPIC_MQTT: %s", BLINKER_PUB_TOPIC_MQTT);
+                    BLINKER_LOG_ALL(TAG, "====================");
+                    
+                    isMQTTinit = 1;
 
-            wolfSSL_shutdown(ssl);
+                    xEventGroupSetBits(http_event_group, isMQTTinit);
+                    
+                    cJSON_Delete(root);
 
-            // wolfSSL_free(ssl);
+                    BLINKER_LOG_FreeHeap(TAG);
 
-            close(socket);
+                    wolfSSL_shutdown(ssl);
 
-            // wolfSSL_CTX_free(ctx);
+                    // wolfSSL_free(ssl);
 
-            // wolfSSL_Cleanup();
+                    close(socket);
 
-            // return;
-            
-            vTaskDelete(NULL);
-            return;
+                    // wolfSSL_CTX_free(ctx);
+
+                    // wolfSSL_Cleanup();
+
+                    // return;
+                    
+                    vTaskDelete(NULL);
+                    return;
+                }                
+            default :
+                vTaskDelete(NULL);
+                return;
         }
 
         https_delay(20);
@@ -1074,7 +1078,37 @@ void blinker_https_get(const char * _host, const char * _url)
     https_request_data = (char *)malloc(https_request_bytes);
     strcpy(https_request_data, _data);
 
-    BLINKER_LOG_ALL(TAG, "http datat: %s, len: %d", https_request_data, https_request_bytes);
+    BLINKER_LOG_ALL(TAG, "http data: %s, len: %d", https_request_data, https_request_bytes);
+}
+
+void blinker_https_post(const char * _host, const char * _url, const char * _msg)
+{
+    if (https_request_bytes != 0) free(https_request_data);
+
+    char _data[256];
+
+    strcpy(_data, "POST https://");
+    strcat(_data, _host);
+    strcat(_data, _url);
+    strcat(_data, " HTTP/1.0\r\n");
+    strcat(_data, "Host: ");
+    strcat(_data, _host);
+    strcat(_data, "\r\nUser-Agent: blinker");    
+    strcat(_data, "\r\nContent-Type: application/json;charset=utf-8\r\n");
+    
+    char _num[6] = {0};
+    sprintf(_num, "%d", strlen(_msg));
+    strcat(_data, "Content-Length: ");
+    strcat(_data, _num);
+    strcat(_data, "\r\nConnection: Keep-Alive\r\n\r\n");
+
+    https_request_bytes = strlen(_data) + strlen(_msg);
+
+    https_request_data = (char *)malloc(https_request_bytes);
+    strcpy(https_request_data, _data);
+    strcat(https_request_data, _msg);
+
+    BLINKER_LOG_ALL(TAG, "http data: %s, len: %d", https_request_data, https_request_bytes);
 }
 
 void wolfssl_http(void* pv)
@@ -1082,7 +1116,27 @@ void wolfssl_http(void* pv)
     wolfssl_client();
 }
 
-void https_test(void)
+void blinker_server(void)
+{
+    xTaskCreate(wolfssl_http,
+                WOLFSSL_DEMO_THREAD_NAME,
+                WOLFSSL_DEMO_THREAD_STACK_WORDS,
+                NULL,
+                WOLFSSL_DEMO_THREAD_PRORIOTY,
+                NULL);
+
+    switch (blinker_https_type)
+    {
+        case BLINKER_CMD_DEVICE_REGISTER_NUMBER:
+            xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+            break;
+        
+        default:
+            break;
+    }
+}
+
+void device_register(void)
 {
     http_event_group = xEventGroupCreate();
 
@@ -1093,18 +1147,20 @@ void https_test(void)
     if (_miType) strcat(test_url, _miType);
     blinker_https_get("iotdev.clz.me", test_url);
 
-    xTaskCreate(wolfssl_http,
-                WOLFSSL_DEMO_THREAD_NAME,
-                WOLFSSL_DEMO_THREAD_STACK_WORDS,
-                NULL,
-                WOLFSSL_DEMO_THREAD_PRORIOTY,
-                NULL);
+    blinker_https_type = BLINKER_CMD_DEVICE_REGISTER_NUMBER;
 
-    xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+    blinker_server();
+
+    // xTaskCreate(wolfssl_http,
+    //             WOLFSSL_DEMO_THREAD_NAME,
+    //             WOLFSSL_DEMO_THREAD_STACK_WORDS,
+    //             NULL,
+    //             WOLFSSL_DEMO_THREAD_PRORIOTY,
+    //             NULL);
+
+    // xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
 
     // while (!isMQTTinit) { vTaskDelay(1000 / portTICK_RATE_MS); }
-
-    blinker_mqtt_init();
 }
 
 // 请求方法 | 空格 | URL | 空格 | 协议版本 | 回车 | 换行
@@ -1279,6 +1335,16 @@ void blinker_mqtt_init(void)
     BLINKER_LOG_ALL(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_start(client);
+}
+
+char * mqtt_device_name(void)
+{
+    return DEVICE_NAME_MQTT;
+}
+
+char * mqtt_auth_key(void)
+{
+    return blinker_authkey;
 }
 
 void ali_type(const char *type, blinker_callback_with_string_arg_t func)

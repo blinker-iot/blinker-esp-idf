@@ -187,6 +187,12 @@ typedef struct
     blinker_callback_with_begin_t begin;
 } blinker_api_t;
 
+typedef struct
+{
+    const char *message;
+    const char *cell;
+} blinker_sms_config_t;
+
 extern blinker_api_t Blinker;
 
 void blinker_aligenie_power_state_init(blinker_callback_with_string_arg_t func);
@@ -241,13 +247,13 @@ void blinker_miot_color_init(blinker_callback_with_int32_arg_t func);
 
 void blinker_miot_mode_init(blinker_callback_with_uint8_arg_t func);
 
-void blinker_miot_brightness_init(blinker_callback_with_string_arg_t func);
+void blinker_miot_brightness_init(blinker_callback_with_int32_arg_t func);
 
 void blinker_miot_color_temperature_init(blinker_callback_with_int32_arg_t func);
 
 void blinker_miot_query_init(blinker_callback_with_int32_arg_t func);
 
-void blinker_miot_multi_query_init(blinker_callback_with_int32_arg_t func);
+void blinker_miot_multi_query_init(blinker_callback_with_int32_uint8_arg_t func);
 
 void blinker_miot_print(const blinker_miot_config_t *config);
 
@@ -282,5 +288,9 @@ void blinker_tab_init(BlinkerTab *tab, blinker_callback_with_tab_arg_t _func, bl
 void print(const char *key, const char *value, int8_t isRaw);
 
 void blinker_init(const blinker_config_t *_conf);
+
+
+
+// void blinker_sms(const blinker_sms_config_t *config);
 
 #endif

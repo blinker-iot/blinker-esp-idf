@@ -7,11 +7,15 @@ void wifi_init_sta(const char * _key, const char * _ssid, const char * _pswd, bl
 
 void wifi_init_smart(const char * _key);
 
-void https_test(void);
+void device_register(void);
 
 void blinker_mqtt_init(void);
 
 // void initialise_wifi();
+
+char * mqtt_device_name(void);
+
+char * mqtt_auth_key(void);
 
 void ali_type(const char *type, blinker_callback_with_string_arg_t func);
 

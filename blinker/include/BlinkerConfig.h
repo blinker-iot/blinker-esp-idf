@@ -433,7 +433,9 @@
 
 #define BLINKER_CMD_TAB_4               1  // 0x00001
 
+#define BLINKER_SERVER_HOST             "iotdev.clz.me"
 
+#define BLINKER_SERVER_PORT             443
 
 #define BLINKER_MQTT_BORKER_ALIYUN      "aliyun"
 
@@ -520,5 +522,61 @@
 #define BLINKER_CMD_QUERY_AQI_NUMBER            11
 
 #define BLINKER_CMD_QUERY_TIME_NUMBER           12
+
+#define BLINKER_CMD_SMS_NUMBER                  1
+
+#define BLINKER_CMD_PUSH_NUMBER                 2
+
+#define BLINKER_CMD_WECHAT_NUMBER               3
+
+#define BLINKER_CMD_WEATHER_NUMBER              4
+
+#define BLINKER_CMD_AQI_NUMBER                  5
+
+#define BLINKER_CMD_BRIDGE_NUMBER               6
+
+#define BLINKER_CMD_CONFIG_UPDATE_NUMBER        7
+
+#define BLINKER_CMD_CONFIG_GET_NUMBER           8
+
+#define BLINKER_CMD_CONFIG_DELETE_NUMBER        9
+
+#define BLINKER_CMD_DATA_STORAGE_NUMBER         10
+
+#define BLINKER_CMD_DATA_GET_NUMBER             11
+
+#define BLINKER_CMD_DATA_DELETE_NUMBER          12
+
+#define BLINKER_CMD_AUTO_PULL_NUMBER            13
+
+#define BLINKER_CMD_OTA_NUMBER                  14
+
+#define BLINKER_CMD_OTA_STATUS_NUMBER           15
+
+#define BLINKER_CMD_FRESH_SHARERS_NUMBER        16
+
+#define BLINKER_CMD_LOWPOWER_FREQ_GET_NUM       17
+
+#define BLINKER_CMD_LOWPOWER_FREQ_UP_NUMBER     18
+
+#define BLINKER_CMD_LOWPOWER_DATA_GET_NUM       19
+
+#define BLINKER_CMD_LOWPOWER_DATA_UP_NUMBER     20
+
+#define BLINKER_CMD_EVENT_DATA_NUMBER           21
+
+#define BLINKER_CMD_GPS_DATA_NUMBER             22
+
+#define BLINKER_CMD_DEVICE_HEARTBEAT_NUMBER     23
+
+#define BLINKER_CMD_EVENT_WARNING_NUMBER        24
+
+#define BLINKER_CMD_EVENT_ERROR_NUMBER          25
+
+#define BLINKER_CMD_EVENT_MSG_NUMBER            26
+
+#define BLINKER_CMD_DEVICE_REGISTER_NUMBER      27
+
+#define BLINKER_CMD_DEFAULT_NUMBER              0
 
 #endif

@@ -7,6 +7,44 @@
 #include "BlinkerApi.h"
 #include "BlinkerMQTT.h"
 
+
+
+// #include <sys/socket.h>
+// #include <netdb.h>
+// #include "lwip/apps/sntp.h"
+
+// #include "wolfssl/ssl.h"
+
+// #include "esp_wifi.h"
+// #include "esp_event_loop.h"
+// #include "esp_log.h"
+
+// #include "nvs_flash.h"
+
+// #define WEB_SERVER "www.howsmyssl.com"
+// #define WEB_PORT 443
+// #define WEB_URL "https://www.howsmyssl.com/a/check"
+
+// #define REQUEST "GET " WEB_URL " HTTP/1.0\r\n" 
+//     "Host: "WEB_SERVER"\r\n" 
+//     "User-Agent: esp-idf/1.0 espressif\r\n" 
+//     "\r\n"
+
+// #define WOLFSSL_DEMO_THREAD_NAME        "wolfssl_client"
+// #define WOLFSSL_DEMO_THREAD_STACK_WORDS 8192
+// #define WOLFSSL_DEMO_THREAD_PRORIOTY    6
+
+// #define WOLFSSL_DEMO_SNTP_SERVERS       "pool.ntp.org"
+
+// const char send_data[] = REQUEST;
+// const int32_t send_bytes = sizeof(send_data);
+// char recv_data[1024] = {0};
+
+
+// char* https_request_data_api;
+// int32_t https_request_bytes_api = 0;
+
+
 static const char *TAG = "BlinkerApi";
 
 blinker_api_t Blinker;
@@ -22,6 +60,7 @@ void parse(const char *data);
 void aligenie_parse(const char *data);
 void dueros_parse(const char *data);
 void miot_parse(const char *data);
+void blinker_server(uint8_t _type);
 
 typedef struct
 {
@@ -261,7 +300,7 @@ void blinker_miot_mode_init(blinker_callback_with_uint8_arg_t func)
     _MIOTSetModeFunc = func;
 }
 
-void blinker_miot_brightness_init(blinker_callback_with_string_arg_t func)
+void blinker_miot_brightness_init(blinker_callback_with_int32_arg_t func)
 {
     _MIOTSetBrightnessFunc = func;
 }
@@ -276,7 +315,7 @@ void blinker_miot_query_init(blinker_callback_with_int32_arg_t func)
     _MIOTQueryFunc = func;
 }
 
-void blinker_miot_multi_query_init(blinker_callback_with_int32_arg_t func)
+void blinker_miot_multi_query_init(blinker_callback_with_int32_uint8_arg_t func)
 {
     _MIOTQueryFunc_m = func;
 }
@@ -576,7 +615,7 @@ void blinker_slider_print(const BlinkerSlider *slider, const blinker_slider_conf
 
 void blinker_switch_print(const blinker_switch_config_t * config)
 {
-    cJSON *pValue = cJSON_CreateObject();
+    // cJSON *pValue = cJSON_CreateObject();
 
     // if (config->state) cJSON_AddStringToObject(pValue, BLINKER_CMD_BUILTIN_SWITCH, config->state);
 
@@ -953,7 +992,8 @@ void default_init(const char * key, const char * ssid, const char * pswd)
 {
     BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", key, ssid, pswd);
     wifi_init_sta(key, ssid, pswd, parse);
-    https_test();
+    device_register();
+    blinker_mqtt_init();
     run();
 }
 
@@ -961,7 +1001,8 @@ void smart_init(const char * key)
 {
     BLINKER_LOG_ALL(TAG, "KEY: %s", key);
     wifi_init_smart(key);
-    https_test();
+    device_register();
+    blinker_mqtt_init();
     run();
 }
 
@@ -1273,13 +1314,13 @@ void dueros_parse(const char *data)
                 _DuerOSPowerStateFunc_m(_power_state->valuestring, _setNum->valueint);
             }                
         }
-        else if (_color != NULL && cJSON_IsString(_color))
+        else if (_color != NULL && cJSON_IsNumber(_color))
         {
-            if (_DuerOSSetColorFunc) _DuerOSSetColorFunc(_color->valuestring);
+            if (_DuerOSSetColorFunc) _DuerOSSetColorFunc(_color->valueint);
         }
-        else if (_color1 != NULL && cJSON_IsString(_color1))
+        else if (_color1 != NULL && cJSON_IsNumber(_color1))
         {
-            if (_DuerOSSetColorFunc) _DuerOSSetColorFunc(_color1->valuestring);
+            if (_DuerOSSetColorFunc) _DuerOSSetColorFunc(_color1->valueint);
         }
         else if (_bright != NULL && cJSON_IsNumber(_bright))
         {
@@ -1480,3 +1521,222 @@ void blinker_run(void* pv)
         vTaskDelay(10 / portTICK_RATE_MS);
     }
 }
+
+
+
+void blinker_sms(const blinker_sms_config_t *config)
+{
+    // if (https_request_bytes_api != 0) free(https_request_data_api);
+
+    // if (!(config->message) || strlen(config->message) >= 20) return;
+
+    // char _data1[256];
+    // char _data2[125];
+
+    // strcpy(_data1, "POST https://iotdev.clz.me/api/v1/user/device/sms");
+    // strcat(_data1, " HTTP/1.0\r\n");
+    // strcat(_data1, "Host: iotdev.clz.me\r\n");
+    // strcat(_data1, "User-Agent: blinker\r\n");    
+    // strcat(_data1, "Content-Type: application/json;charset=utf-8\r\n");
+    // strcpy(_data2, "{\"deviceName\":\"");
+    // strcat(_data2, mqtt_device_name());
+    // if (config->cell)
+    // {
+    //     strcat(_data2, "\",\"cel\":\"");
+    //     strcat(_data2, config->cell);
+    // }
+    // strcat(_data2, "\",\"key\":\"");
+    // strcat(_data2, mqtt_auth_key());
+    // strcat(_data2, "\",\"msg\":\"");
+    // strcat(_data2, config->message);
+    // strcat(_data2, "\"}");
+
+    // char _num[6] = {0};
+    // sprintf(_num, "%d", strlen(_data2));
+    // strcat(_data1, "Content-Length: ");
+    // strcat(_data1, _num);
+    // strcat(_data1, "\r\nConnection: Keep-Alive\r\n\r\n");
+
+    // https_request_bytes_api = strlen(_data1) + strlen(_data2);
+
+    // https_request_data_api = (char *)malloc(https_request_bytes_api);
+    // strcpy(https_request_data_api, _data1);
+    // strcat(https_request_data_api, _data2);
+
+    // BLINKER_LOG_ALL(TAG, "http data: %s, len: %d", https_request_data_api, https_request_bytes_api);
+
+    // blinker_server(BLINKER_CMD_SMS_NUMBER);
+}
+
+// static void wolfssl_client(void* pv)
+// {
+//     int32_t ret = 0;
+
+//     const portTickType xDelay = 500 / portTICK_RATE_MS;
+//     WOLFSSL_CTX* ctx = NULL;
+//     WOLFSSL* ssl = NULL;
+
+//     int32_t socket = -1;
+//     struct sockaddr_in sock_addr;
+//     struct hostent* entry = NULL;
+
+//     /* CA date verification need system time */
+//     // get_time();
+
+//     while (1) {
+
+//         BLINKER_LOG_ALL(TAG, "Setting hostname for TLS session...\n");
+
+//         /*get addr info for hostname*/
+//         do {
+//             entry = gethostbyname(BLINKER_SERVER_HOST);
+//             vTaskDelay(xDelay);
+//         } while (entry == NULL);
+
+//         BLINKER_LOG_ALL(TAG, "Init wolfSSL...\n");
+//         ret = wolfSSL_Init();
+
+//         if (ret != WOLFSSL_SUCCESS) {
+//             BLINKER_LOG_ALL(TAG, "Init wolfSSL failed:%d...\n", ret);
+//             goto failed1;
+//         }
+
+//         BLINKER_LOG_ALL(TAG, "Set wolfSSL ctx ...\n");
+//         ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method());
+
+//         if (!ctx) {
+//             BLINKER_LOG_ALL(TAG, "Set wolfSSL ctx failed...\n");
+//             goto failed1;
+//         }
+
+//         BLINKER_LOG_ALL(TAG, "Creat socket ...\n");
+//         socket = socket(AF_INET, SOCK_STREAM, 0);
+
+//         if (socket < 0) {
+//             BLINKER_LOG_ALL(TAG, "Creat socket failed...\n");
+//             goto failed2;
+//         }
+
+// #if CONFIG_CERT_AUTH
+//         BLINKER_LOG_ALL(TAG, "Loading the CA root certificate...\n");
+//         ret = wolfSSL_CTX_load_verify_buffer(ctx, server_root_cert_pem_start, server_root_cert_pem_end - server_root_cert_pem_start, WOLFSSL_FILETYPE_PEM);
+
+//         if (WOLFSSL_SUCCESS != ret) {
+//             BLINKER_LOG_ALL(TAG, "Loading the CA root certificate failed...\n");
+//             goto failed3;
+//         }
+
+//         wolfSSL_CTX_set_verify(ctx, WOLFSSL_VERIFY_PEER, NULL);
+// #else
+//         wolfSSL_CTX_set_verify(ctx, WOLFSSL_VERIFY_NONE, NULL);
+// #endif
+
+//         memset(&sock_addr, 0, sizeof(sock_addr));
+//         sock_addr.sin_family = AF_INET;
+//         sock_addr.sin_port = htons(BLINKER_SERVER_PORT);
+//         sock_addr.sin_addr.s_addr = ((struct in_addr*)(entry->h_addr))->s_addr;
+
+//         BLINKER_LOG_ALL(TAG, "Connecting to %s:%d...\n", BLINKER_SERVER_HOST, BLINKER_SERVER_PORT);
+//         ret = connect(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
+
+//         if (ret) {
+//             BLINKER_LOG_ALL(TAG, "Connecting to %s:%d failed: %d\n", BLINKER_SERVER_HOST, BLINKER_SERVER_PORT, ret);
+//             goto failed3;
+//         }
+
+//         BLINKER_LOG_ALL(TAG, "Create wolfSSL...\n");
+//         ssl = wolfSSL_new(ctx);
+
+//         if (!ssl) {
+//             BLINKER_LOG_ALL(TAG, "Create wolfSSL failed...\n");
+//             goto failed3;
+//         }
+
+//         wolfSSL_set_fd(ssl, socket);
+
+//         BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake...\n");
+//         ret = wolfSSL_connect(ssl);
+
+//         if (WOLFSSL_SUCCESS != ret) {
+//             BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake failed:%d\n", ret);
+//             goto failed4;
+//         }
+
+//         BLINKER_LOG_ALL(TAG, "Writing HTTPS request...\n");
+//         ret = wolfSSL_write(ssl, https_request_data_api, https_request_bytes_api);
+
+//         if (ret <= 0) {
+//             BLINKER_LOG_ALL(TAG, "Writing HTTPS request failed:%d\n", ret);
+//             goto failed5;
+//         }
+
+//         BLINKER_LOG_ALL(TAG, "Reading HTTPS response...\n");
+
+//         do {
+//             ret = wolfSSL_read(ssl, recv_data, sizeof(recv_data));
+
+
+//             if (ret <= 0) {
+//                 BLINKER_LOG_ALL(TAG, "\nConnection closed\n");
+//                 break;
+//             }
+
+//             /* Print response directly to stdout as it is read */
+//             for (int i = 0; i < ret; i++) {
+//                 printf("%c", recv_data[i]);
+//             }
+//         } while (1);
+
+// failed5:
+//         wolfSSL_shutdown(ssl);
+// failed4:
+//         wolfSSL_free(ssl);
+// failed3:
+//         close(socket);
+// failed2:
+//         wolfSSL_CTX_free(ctx);
+// failed1:
+//         wolfSSL_Cleanup();
+
+//         free(https_request_data_api);
+//         https_request_bytes_api = 0;
+
+//         // for (int countdown = 10; countdown >= 0; countdown--) {
+//         //     BLINKER_LOG_ALL(TAG, "%d...\n", countdown);
+//         //     vTaskDelay(1000 / portTICK_RATE_MS);
+//         // }
+
+//         // BLINKER_LOG_ALL(TAG, "Starting again!\n");
+
+//         vTaskDelete(NULL);
+//     }
+// }
+
+// uint32_t    _smsTime = 0;
+
+// uint8_t check_sms(void)
+// {
+//     if ((millis() - _smsTime) >= BLINKER_SMS_MSG_LIMIT || 
+//         _smsTime == 0) return 1;
+//     else return 0;
+// }
+
+// void blinker_server(uint8_t _type)
+// {
+//     switch (_type)
+//     {
+//         case BLINKER_CMD_SMS_NUMBER :
+//             if (!check_sms()) return;
+//             _smsTime = millis();
+//             break;
+//         default :
+//             break;
+//     }
+
+//     xTaskCreate(wolfssl_client,
+//                 WOLFSSL_DEMO_THREAD_NAME,
+//                 WOLFSSL_DEMO_THREAD_STACK_WORDS,
+//                 NULL,
+//                 WOLFSSL_DEMO_THREAD_PRORIOTY,
+//                 NULL);
+// }
