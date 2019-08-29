@@ -193,6 +193,13 @@ typedef struct
     const char *cell;
 } blinker_sms_config_t;
 
+typedef struct
+{
+    const char *title;
+    const char *state;
+    const char *message;
+} blinker_wechat_config_t;
+
 extern blinker_api_t Blinker;
 
 void blinker_aligenie_power_state_init(blinker_callback_with_string_arg_t func);
@@ -291,6 +298,18 @@ void blinker_init(const blinker_config_t *_conf);
 
 
 
-// void blinker_sms(const blinker_sms_config_t *config);
+void blinker_sms(const blinker_sms_config_t *config);
+
+void blinker_push(const char *msg);
+
+void blinker_wechat(const blinker_wechat_config_t *config);
+
+void blinker_weather(const char *city);
+
+void blinker_attach_weather_data(blinker_callback_with_json_arg_t func);
+
+void blinker_aqi(const char *city);
+
+void blinker_attach_aqi_data(blinker_callback_with_json_arg_t func);
 
 #endif

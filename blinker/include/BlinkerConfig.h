@@ -579,4 +579,10 @@
 
 #define BLINKER_CMD_DEFAULT_NUMBER              0
 
+#define BLINKER_MQTT_MAX_SHARERS_NUM            9
+
+#define BLINKER_MQTT_FROM_AUTHER                BLINKER_MQTT_MAX_SHARERS_NUM
+
+#define BLINKER_MQTT_FORM_SERVER                BLINKER_MQTT_MAX_SHARERS_NUM + 1
+
 #endif

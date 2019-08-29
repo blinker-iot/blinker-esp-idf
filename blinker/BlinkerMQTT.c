@@ -120,14 +120,36 @@ uint32_t    respMIOTTime = 0;
 void smartconfig_task(void * parm);
 void initialise_wifi();
 void blinker_https_get(const char * _host, const char * _url);
-blinker_callback_with_string_arg_t data_parse_func = NULL;
-blinker_callback_with_string_arg_t aligenie_parse_func = NULL;
-blinker_callback_with_string_arg_t dueros_parse_func = NULL;
-blinker_callback_with_string_arg_t miot_parse_func = NULL;
+blinker_callback_with_string_arg_t  data_parse_func = NULL;
+blinker_callback_with_string_arg_t  aligenie_parse_func = NULL;
+blinker_callback_with_string_arg_t  dueros_parse_func = NULL;
+blinker_callback_with_string_arg_t  miot_parse_func = NULL;
+
+blinker_callback_with_json_arg_t    _weather_func = NULL;
+blinker_callback_with_json_arg_t    _aqi_func = NULL;
+
+typedef struct
+{
+    const char *uuid;
+} blinker_share_t;
+
+blinker_share_t _sharers[BLINKER_MQTT_MAX_SHARERS_NUM];
+uint8_t         _sharerCount = 0;
+uint8_t         _sharerFrom = BLINKER_MQTT_FROM_AUTHER;
 
 #define CONFIG_MQTT_PAYLOAD_BUFFER 1460
 // #define CONFIG_MQTT_BROKER 
 // #define CONFIG_MQTT_PORT
+
+void weather_data(blinker_callback_with_json_arg_t func)
+{
+    _weather_func = func;
+}
+
+void aqi_data(blinker_callback_with_json_arg_t func)
+{
+    _aqi_func = func;
+}
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -878,6 +900,9 @@ void wolfssl_client(void)
                     {
                         BLINKER_LOG_ALL(TAG, "headers received");
                         need_read = 1;
+
+                        wolfSSL_shutdown(ssl);
+                        close(socket);
                     }
                     // BLINKER_LOG_ALL(TAG, "check_num: %d", check_num);
                     check_num = 0;
@@ -903,8 +928,93 @@ failed1:
 
         switch (blinker_https_type)
         {
+            case BLINKER_CMD_WEATHER_NUMBER :
+                if (https_request_bytes != 0)
+                {
+                    free(https_request_data);
+                    https_request_bytes = 0;
+                }
+
+                BLINKER_LOG_ALL(TAG, "BLINKER_CMD_WEATHER_NUMBER");
+
+                if (isJson(payload))
+                {
+                    cJSON *root = cJSON_Parse(payload);
+
+                    cJSON *detail = cJSON_GetObjectItemCaseSensitive(root, BLINKER_CMD_DETAIL);
+
+                    if (detail != NULL && cJSON_IsObject(detail))
+                    {
+                        if (_weather_func) _weather_func(detail);
+                    }
+
+                    cJSON_Delete(root);
+                }
+
+                vTaskDelete(NULL);
+                return;
+            case BLINKER_CMD_AQI_NUMBER :
+                if (https_request_bytes != 0)
+                {
+                    free(https_request_data);
+                    https_request_bytes = 0;
+                }
+
+                BLINKER_LOG_ALL(TAG, "BLINKER_CMD_AQI_NUMBER");
+
+                if (isJson(payload))
+                {
+                    cJSON *root = cJSON_Parse(payload);
+
+                    cJSON *detail = cJSON_GetObjectItemCaseSensitive(root, BLINKER_CMD_DETAIL);
+
+                    if (detail != NULL && cJSON_IsObject(detail))
+                    {
+                        if (_aqi_func) _aqi_func(detail);
+                    }
+
+                    cJSON_Delete(root);
+                }
+
+                vTaskDelete(NULL);
+                return;
+            case BLINKER_CMD_FRESH_SHARERS_NUMBER :
+                if (https_request_bytes != 0)
+                {
+                    free(https_request_data);
+                    https_request_bytes = 0;
+                }
+
+                BLINKER_LOG_ALL(TAG, "BLINKER_CMD_FRESH_SHARERS_NUMBER");
+
+                if (isJson(payload))
+                {
+                    cJSON *root = cJSON_Parse(payload);
+
+                    cJSON *detail = cJSON_GetObjectItemCaseSensitive(root, BLINKER_CMD_DETAIL);
+
+                    if (detail != NULL && cJSON_IsObject(detail))
+                    {
+                        cJSON *users = cJSON_GetObjectItemCaseSensitive(detail, "users");
+
+                        if (users != NULL && cJSON_IsArray(users))
+                        {
+                            _sharerCount = 0;
+
+                            uint8_t arry_size = cJSON_GetArraySize(users);
+
+                            BLINKER_LOG_ALL(TAG, "sharers arry size: %d", arry_size);
+                        }
+                    }
+
+                    cJSON_Delete(root);
+                }
+
+                vTaskDelete(NULL);
+                return;
             case BLINKER_CMD_DEVICE_REGISTER_NUMBER :
-                // BLINKER_LOG_ALL(TAG, "check isJson");
+                BLINKER_LOG_ALL(TAG, "BLINKER_CMD_DEVICE_REGISTER_NUMBER");
+
                 if (check_register_data(payload))
                 {
                     cJSON *root = cJSON_Parse(payload);
@@ -1003,11 +1113,11 @@ failed1:
 
                     BLINKER_LOG_FreeHeap(TAG);
 
-                    wolfSSL_shutdown(ssl);
+                    // wolfSSL_shutdown(ssl);
 
-                    // wolfSSL_free(ssl);
+                    // // wolfSSL_free(ssl);
 
-                    close(socket);
+                    // close(socket);
 
                     // wolfSSL_CTX_free(ctx);
 
@@ -1017,8 +1127,31 @@ failed1:
                     
                     vTaskDelete(NULL);
                     return;
-                }                
+                }
+                break;
             default :
+                if (https_request_bytes != 0)
+                {
+                    free(https_request_data);
+                    https_request_bytes = 0;
+                }
+
+                BLINKER_LOG_ALL(TAG, "default");
+
+                if (isJson(payload))
+                {
+                    cJSON *root = cJSON_Parse(payload);
+
+                    cJSON *detail = cJSON_GetObjectItemCaseSensitive(root, BLINKER_CMD_DETAIL);
+
+                    if (detail != NULL && cJSON_IsString(detail))
+                    {
+                        BLINKER_ERR_LOG(TAG, "%s", detail->valuestring);
+                    }
+
+                    cJSON_Delete(root);
+                }
+
                 vTaskDelete(NULL);
                 return;
         }
@@ -1116,8 +1249,10 @@ void wolfssl_http(void* pv)
     wolfssl_client();
 }
 
-void blinker_server(void)
+void blinker_server(uint8_t type)
 {
+    blinker_https_type = type;
+
     xTaskCreate(wolfssl_http,
                 WOLFSSL_DEMO_THREAD_NAME,
                 WOLFSSL_DEMO_THREAD_STACK_WORDS,
@@ -1125,12 +1260,15 @@ void blinker_server(void)
                 WOLFSSL_DEMO_THREAD_PRORIOTY,
                 NULL);
 
-    switch (blinker_https_type)
+    switch (type)
     {
+        // case BLINKER_CMD_SMS_NUMBER:
+        //     break;
+        // case BLINKER_CMD_SMS_NUMBER:
+        //     break;
         case BLINKER_CMD_DEVICE_REGISTER_NUMBER:
             xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
-            break;
-        
+            break;        
         default:
             break;
     }
@@ -1147,9 +1285,7 @@ void device_register(void)
     if (_miType) strcat(test_url, _miType);
     blinker_https_get("iotdev.clz.me", test_url);
 
-    blinker_https_type = BLINKER_CMD_DEVICE_REGISTER_NUMBER;
-
-    blinker_server();
+    blinker_server(BLINKER_CMD_DEVICE_REGISTER_NUMBER);
 
     // xTaskCreate(wolfssl_http,
     //             WOLFSSL_DEMO_THREAD_NAME,
@@ -1329,6 +1465,7 @@ void blinker_mqtt_init(void)
         .password = MQTT_KEY_MQTT,
         .port = BLINKER_MQTT_ALIYUN_PORT,
         .transport = MQTT_TRANSPORT_OVER_SSL,
+        .task_stack = 8192,
         // .cert_pem = (const char *)iot_eclipse_org_pem_start,
     };
 
@@ -1561,18 +1698,18 @@ int8_t blinker_mqtt_print(char *data, uint8_t need_check)
         strcat(data, MQTT_ID_MQTT);
         strcat(data, "\",\"toDevice\":\"");
         
-        // if (_sharerFrom < BLINKER_MQTT_MAX_SHARERS_NUM)
-        // {
-        //     strcat(data, _sharers[_sharerFrom]->uuid());
-        // }
-        // else
-        // {
+        if (_sharerFrom < BLINKER_MQTT_MAX_SHARERS_NUM)
+        {
+            strcat(data, _sharers[_sharerFrom].uuid);
+        }
+        else
+        {
             strcat(data, UUID_MQTT);
-        // }
+        }
 
         strcat(data, "\",\"deviceType\":\"OwnApp\"}");
 
-        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+        _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
 
         BLINKER_LOG_ALL(TAG, "publish: %s", data);
 
@@ -1640,7 +1777,7 @@ int8_t blinker_aligenie_mqtt_print(char *data)
         strcat(data, "\",\"toDevice\":\"AliGenie_r\"");
         strcat(data, ",\"deviceType\":\"vAssistant\"}");
 
-        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+        _sharerFrom = BLINKER_MQTT_FROM_AUTHER;       
 
         BLINKER_LOG_ALL(TAG, "publish: %s", data);
 
@@ -1697,7 +1834,7 @@ int8_t blinker_dueros_mqtt_print(char *data)
         strcat(data, "\",\"toDevice\":\"AliGenie_r\"");
         strcat(data, ",\"deviceType\":\"vAssistant\"}");
 
-        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+        _sharerFrom = BLINKER_MQTT_FROM_AUTHER;
 
         BLINKER_LOG_ALL(TAG, "publish: %s", data);
 
@@ -1754,7 +1891,7 @@ int8_t blinker_miot_mqtt_print(char *data)
         strcat(data, "\",\"toDevice\":\"MIOT_r\"");
         strcat(data, ",\"deviceType\":\"vAssistant\"}");
 
-        // _sharerFrom = BLINKER_MQTT_FROM_AUTHER;        
+        _sharerFrom = BLINKER_MQTT_FROM_AUTHER;
 
         BLINKER_LOG_ALL(TAG, "publish: %s", data);
 

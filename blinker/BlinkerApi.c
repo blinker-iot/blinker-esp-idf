@@ -61,6 +61,7 @@ void aligenie_parse(const char *data);
 void dueros_parse(const char *data);
 void miot_parse(const char *data);
 void blinker_server(uint8_t _type);
+void blinker_fresh_sharers(void);
 
 typedef struct
 {
@@ -1524,219 +1525,198 @@ void blinker_run(void* pv)
 
 
 
-void blinker_sms(const blinker_sms_config_t *config)
+uint32_t    _smsTime = 0;
+uint32_t    _pushTime = 0;
+uint32_t    _wechatTime = 0;
+uint32_t    _weatherTime = 0;
+uint32_t    _aqiTime = 0;
+
+uint8_t check_sms(void)
 {
-    // if (https_request_bytes_api != 0) free(https_request_data_api);
-
-    // if (!(config->message) || strlen(config->message) >= 20) return;
-
-    // char _data1[256];
-    // char _data2[125];
-
-    // strcpy(_data1, "POST https://iotdev.clz.me/api/v1/user/device/sms");
-    // strcat(_data1, " HTTP/1.0\r\n");
-    // strcat(_data1, "Host: iotdev.clz.me\r\n");
-    // strcat(_data1, "User-Agent: blinker\r\n");    
-    // strcat(_data1, "Content-Type: application/json;charset=utf-8\r\n");
-    // strcpy(_data2, "{\"deviceName\":\"");
-    // strcat(_data2, mqtt_device_name());
-    // if (config->cell)
-    // {
-    //     strcat(_data2, "\",\"cel\":\"");
-    //     strcat(_data2, config->cell);
-    // }
-    // strcat(_data2, "\",\"key\":\"");
-    // strcat(_data2, mqtt_auth_key());
-    // strcat(_data2, "\",\"msg\":\"");
-    // strcat(_data2, config->message);
-    // strcat(_data2, "\"}");
-
-    // char _num[6] = {0};
-    // sprintf(_num, "%d", strlen(_data2));
-    // strcat(_data1, "Content-Length: ");
-    // strcat(_data1, _num);
-    // strcat(_data1, "\r\nConnection: Keep-Alive\r\n\r\n");
-
-    // https_request_bytes_api = strlen(_data1) + strlen(_data2);
-
-    // https_request_data_api = (char *)malloc(https_request_bytes_api);
-    // strcpy(https_request_data_api, _data1);
-    // strcat(https_request_data_api, _data2);
-
-    // BLINKER_LOG_ALL(TAG, "http data: %s, len: %d", https_request_data_api, https_request_bytes_api);
-
-    // blinker_server(BLINKER_CMD_SMS_NUMBER);
+    if ((millis() - _smsTime) >= BLINKER_SMS_MSG_LIMIT || 
+        _smsTime == 0) return 1;
+    else return 0;
 }
 
-// static void wolfssl_client(void* pv)
-// {
-//     int32_t ret = 0;
+uint8_t check_push(void)
+{
+    if ((millis() - _pushTime) >= BLINKER_PUSH_MSG_LIMIT || 
+        _pushTime == 0) return 1;
+    else return 0;
+}
 
-//     const portTickType xDelay = 500 / portTICK_RATE_MS;
-//     WOLFSSL_CTX* ctx = NULL;
-//     WOLFSSL* ssl = NULL;
+uint8_t check_wechat(void)
+{
+    if ((millis() - _wechatTime) >= BLINKER_WECHAT_MSG_LIMIT || 
+        _wechatTime == 0) return 1;
+    else return 0;
+}
 
-//     int32_t socket = -1;
-//     struct sockaddr_in sock_addr;
-//     struct hostent* entry = NULL;
+uint8_t check_weather(void)
+{
+    if ((millis() - _weatherTime) >= BLINKER_WEATHER_MSG_LIMIT || 
+        _weatherTime == 0) return 1;
+    else return 0;
+}
 
-//     /* CA date verification need system time */
-//     // get_time();
+uint8_t check_aqi(void)
+{
+    if ((millis() - _aqiTime) >= BLINKER_WEATHER_MSG_LIMIT || 
+        _aqiTime == 0) return 1;
+    else return 0;
+}
 
-//     while (1) {
+void blinker_sms(const blinker_sms_config_t *config)
+{
+    if (!(config->message) || strlen(config->message) >= 20) return;
 
-//         BLINKER_LOG_ALL(TAG, "Setting hostname for TLS session...\n");
+    if (!check_sms()) return;
 
-//         /*get addr info for hostname*/
-//         do {
-//             entry = gethostbyname(BLINKER_SERVER_HOST);
-//             vTaskDelay(xDelay);
-//         } while (entry == NULL);
+    _smsTime = millis();
 
-//         BLINKER_LOG_ALL(TAG, "Init wolfSSL...\n");
-//         ret = wolfSSL_Init();
+    char data[128];
 
-//         if (ret != WOLFSSL_SUCCESS) {
-//             BLINKER_LOG_ALL(TAG, "Init wolfSSL failed:%d...\n", ret);
-//             goto failed1;
-//         }
+    strcpy(data, "{\"deviceName\":\"");
+    strcat(data, mqtt_device_name());
+    if (config->cell)
+    {
+        strcat(data, "\",\"cel\":\"");
+        strcat(data, config->cell);
+    }
+    strcat(data, "\",\"key\":\"");
+    strcat(data, mqtt_auth_key());
+    strcat(data, "\",\"msg\":\"");
+    strcat(data, config->message);
+    strcat(data, "\"}");
 
-//         BLINKER_LOG_ALL(TAG, "Set wolfSSL ctx ...\n");
-//         ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method());
+    blinker_https_post(BLINKER_SERVER_HOST, "/api/v1/user/device/sms", data);
 
-//         if (!ctx) {
-//             BLINKER_LOG_ALL(TAG, "Set wolfSSL ctx failed...\n");
-//             goto failed1;
-//         }
+    blinker_server(BLINKER_CMD_SMS_NUMBER);
+}
 
-//         BLINKER_LOG_ALL(TAG, "Creat socket ...\n");
-//         socket = socket(AF_INET, SOCK_STREAM, 0);
+void blinker_push(const char *msg)
+{
+    if (strlen(msg) > 64) return;
 
-//         if (socket < 0) {
-//             BLINKER_LOG_ALL(TAG, "Creat socket failed...\n");
-//             goto failed2;
-//         }
+    if (!check_push()) return;
 
-// #if CONFIG_CERT_AUTH
-//         BLINKER_LOG_ALL(TAG, "Loading the CA root certificate...\n");
-//         ret = wolfSSL_CTX_load_verify_buffer(ctx, server_root_cert_pem_start, server_root_cert_pem_end - server_root_cert_pem_start, WOLFSSL_FILETYPE_PEM);
+    _pushTime = millis();
 
-//         if (WOLFSSL_SUCCESS != ret) {
-//             BLINKER_LOG_ALL(TAG, "Loading the CA root certificate failed...\n");
-//             goto failed3;
-//         }
+    char data[128];
 
-//         wolfSSL_CTX_set_verify(ctx, WOLFSSL_VERIFY_PEER, NULL);
-// #else
-//         wolfSSL_CTX_set_verify(ctx, WOLFSSL_VERIFY_NONE, NULL);
-// #endif
+    strcpy(data, "{\"deviceName\":\"");
+    strcat(data, mqtt_device_name());
+    strcat(data, "\",\"key\":\"");
+    strcat(data, mqtt_auth_key());
+    strcat(data, "\",\"msg\":\"");
+    strcat(data, msg);
+    strcat(data, "\"}");
 
-//         memset(&sock_addr, 0, sizeof(sock_addr));
-//         sock_addr.sin_family = AF_INET;
-//         sock_addr.sin_port = htons(BLINKER_SERVER_PORT);
-//         sock_addr.sin_addr.s_addr = ((struct in_addr*)(entry->h_addr))->s_addr;
+    blinker_https_post(BLINKER_SERVER_HOST, "/api/v1/user/device/push", data);
 
-//         BLINKER_LOG_ALL(TAG, "Connecting to %s:%d...\n", BLINKER_SERVER_HOST, BLINKER_SERVER_PORT);
-//         ret = connect(socket, (struct sockaddr*)&sock_addr, sizeof(sock_addr));
+    blinker_server(BLINKER_CMD_PUSH_NUMBER);
+}
 
-//         if (ret) {
-//             BLINKER_LOG_ALL(TAG, "Connecting to %s:%d failed: %d\n", BLINKER_SERVER_HOST, BLINKER_SERVER_PORT, ret);
-//             goto failed3;
-//         }
+void blinker_wechat(const blinker_wechat_config_t *config)
+{
+    if (!(config->message) || strlen(config->message) >= 64) return;
 
-//         BLINKER_LOG_ALL(TAG, "Create wolfSSL...\n");
-//         ssl = wolfSSL_new(ctx);
+    if (!check_wechat()) return;
 
-//         if (!ssl) {
-//             BLINKER_LOG_ALL(TAG, "Create wolfSSL failed...\n");
-//             goto failed3;
-//         }
+    _wechatTime = millis();
 
-//         wolfSSL_set_fd(ssl, socket);
+    char data[128];
 
-//         BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake...\n");
-//         ret = wolfSSL_connect(ssl);
+    strcpy(data, "{\"deviceName\":\"");
+    strcat(data, mqtt_device_name());
+    strcat(data, "\",\"key\":\"");
+    strcat(data, mqtt_auth_key());
+    if (config->title)
+    {
+        strcat(data, "\",\"title\":\"");
+        strcat(data, config->title);
+    }
+    if (config->state)
+    {
+        strcat(data, "\",\"state\":\"");
+        strcat(data, config->state);
+    }
+    strcat(data, "\",\"msg\":\"");
+    strcat(data, config->message);
+    strcat(data, "\"}");
 
-//         if (WOLFSSL_SUCCESS != ret) {
-//             BLINKER_LOG_ALL(TAG, "Performing the SSL/TLS handshake failed:%d\n", ret);
-//             goto failed4;
-//         }
+    blinker_https_post(BLINKER_SERVER_HOST, "/api/v1/user/device/wxMsg/", data);
 
-//         BLINKER_LOG_ALL(TAG, "Writing HTTPS request...\n");
-//         ret = wolfSSL_write(ssl, https_request_data_api, https_request_bytes_api);
+    blinker_server(BLINKER_CMD_WECHAT_NUMBER);
+}
 
-//         if (ret <= 0) {
-//             BLINKER_LOG_ALL(TAG, "Writing HTTPS request failed:%d\n", ret);
-//             goto failed5;
-//         }
+void blinker_weather(const char *city)
+{
+    if (strlen(city) > 40) return;
 
-//         BLINKER_LOG_ALL(TAG, "Reading HTTPS response...\n");
+    if (!check_weather()) return;
 
-//         do {
-//             ret = wolfSSL_read(ssl, recv_data, sizeof(recv_data));
+    _weatherTime = millis();
 
+    char url[128];
 
-//             if (ret <= 0) {
-//                 BLINKER_LOG_ALL(TAG, "\nConnection closed\n");
-//                 break;
-//             }
+    strcpy(url, "/api/v1/weather/now?");
+    strcat(url, "deviceName=");
+    strcat(url, mqtt_device_name());
+    strcat(url, "&key=");
+    strcat(url, mqtt_auth_key());    
+    strcat(url, "&location=");
+    strcat(url, city);
 
-//             /* Print response directly to stdout as it is read */
-//             for (int i = 0; i < ret; i++) {
-//                 printf("%c", recv_data[i]);
-//             }
-//         } while (1);
+    blinker_https_get(BLINKER_SERVER_HOST, url);
 
-// failed5:
-//         wolfSSL_shutdown(ssl);
-// failed4:
-//         wolfSSL_free(ssl);
-// failed3:
-//         close(socket);
-// failed2:
-//         wolfSSL_CTX_free(ctx);
-// failed1:
-//         wolfSSL_Cleanup();
+    blinker_server(BLINKER_CMD_WEATHER_NUMBER);
+}
 
-//         free(https_request_data_api);
-//         https_request_bytes_api = 0;
+void blinker_attach_weather_data(blinker_callback_with_json_arg_t func)
+{
+    weather_data(func);
+}
 
-//         // for (int countdown = 10; countdown >= 0; countdown--) {
-//         //     BLINKER_LOG_ALL(TAG, "%d...\n", countdown);
-//         //     vTaskDelay(1000 / portTICK_RATE_MS);
-//         // }
+void blinker_aqi(const char *city)
+{
+    if (strlen(city) > 40) return;
 
-//         // BLINKER_LOG_ALL(TAG, "Starting again!\n");
+    if (!check_aqi()) return;
 
-//         vTaskDelete(NULL);
-//     }
-// }
+    _aqiTime = millis();
 
-// uint32_t    _smsTime = 0;
+    char url[128];
 
-// uint8_t check_sms(void)
-// {
-//     if ((millis() - _smsTime) >= BLINKER_SMS_MSG_LIMIT || 
-//         _smsTime == 0) return 1;
-//     else return 0;
-// }
+    strcpy(url, "/api/v1/weather/aqi?");
+    strcat(url, "deviceName=");
+    strcat(url, mqtt_device_name());
+    strcat(url, "&key=");
+    strcat(url, mqtt_auth_key());
+    strcat(url, "&location=");
+    strcat(url, city);
 
-// void blinker_server(uint8_t _type)
-// {
-//     switch (_type)
-//     {
-//         case BLINKER_CMD_SMS_NUMBER :
-//             if (!check_sms()) return;
-//             _smsTime = millis();
-//             break;
-//         default :
-//             break;
-//     }
+    blinker_https_get(BLINKER_SERVER_HOST, url);
 
-//     xTaskCreate(wolfssl_client,
-//                 WOLFSSL_DEMO_THREAD_NAME,
-//                 WOLFSSL_DEMO_THREAD_STACK_WORDS,
-//                 NULL,
-//                 WOLFSSL_DEMO_THREAD_PRORIOTY,
-//                 NULL);
-// }
+    blinker_server(BLINKER_CMD_AQI_NUMBER);
+}
+
+void blinker_attach_aqi_data(blinker_callback_with_json_arg_t func)
+{
+    aqi_data(func);
+}
+
+void blinker_fresh_sharers(void)
+{
+    char url[128];
+
+    strcpy(url, "/api/v1/user/device/share/device?");
+    strcat(url, "deviceName=");
+    strcat(url, mqtt_device_name());
+    strcat(url, "&key=");
+    strcat(url, mqtt_auth_key());
+
+    blinker_https_get(BLINKER_SERVER_HOST, url);
+
+    blinker_server(BLINKER_CMD_FRESH_SHARERS_NUMBER);
+}
