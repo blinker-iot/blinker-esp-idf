@@ -995,6 +995,7 @@ void default_init(const char * key, const char * ssid, const char * pswd)
     wifi_init_sta(key, ssid, pswd, parse);
     device_register();
     blinker_mqtt_init();
+    blinker_fresh_sharers();
     run();
 }
 
@@ -1004,6 +1005,7 @@ void smart_init(const char * key)
     wifi_init_smart(key);
     device_register();
     blinker_mqtt_init();
+    blinker_fresh_sharers();
     run();
 }
 

@@ -999,9 +999,9 @@ failed1:
 
                         if (users != NULL && cJSON_IsArray(users))
                         {
-                            _sharerCount = 0;
-
                             uint8_t arry_size = cJSON_GetArraySize(users);
+                            
+                            _sharerCount = arry_size;
 
                             BLINKER_LOG_ALL(TAG, "sharers arry size: %d", arry_size);
                         }
@@ -1264,7 +1264,8 @@ void blinker_server(uint8_t type)
     {
         // case BLINKER_CMD_SMS_NUMBER:
         //     break;
-        // case BLINKER_CMD_SMS_NUMBER:
+        // case BLINKER_CMD_FRESH_SHARERS_NUMBER:
+        //     xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
         //     break;
         case BLINKER_CMD_DEVICE_REGISTER_NUMBER:
             xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
