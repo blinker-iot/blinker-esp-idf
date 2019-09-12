@@ -15,7 +15,7 @@ void device_register(void);
 
 void blinker_mqtt_init(void);
 
-// void initialise_wifi();
+// void initialise_wifi(void);
 
 char * mqtt_device_name(void);
 

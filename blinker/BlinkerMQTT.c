@@ -21,6 +21,10 @@
 #include "esp_http_client.h"
 #include "mqtt_client.h"
 
+#include "mdns.h"
+// #include <sys/socket.h>
+// #include <netdb.h>
+
 static const char *TAG = "BlinkerMQTT";
 
 static EventGroupHandle_t wifi_event_group;
@@ -334,7 +338,7 @@ void smartconfig_task(void * parm)
     }
 }
 
-void initialise_wifi()
+void initialise_wifi(void)
 {
     esp_wifi_deinit();
 
@@ -351,6 +355,28 @@ void initialise_wifi()
     ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
     ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK( esp_wifi_start() );
+}
+
+void initialise_mdns(void)
+{
+    // initialize mDNS
+    ESP_ERROR_CHECK( mdns_init() );
+    // set mDNS hostname (required if you want to advertise services)
+    ESP_ERROR_CHECK( mdns_hostname_set(DEVICE_NAME_MQTT) );
+    // set default mDNS instance name
+    ESP_ERROR_CHECK( mdns_instance_name_set(DEVICE_NAME_MQTT) );
+
+    // structure with TXT records
+    mdns_txt_item_t serviceTxtData[1] = {
+        {"deviceName", DEVICE_NAME_MQTT}
+    };
+
+    //initialize service
+    ESP_ERROR_CHECK( mdns_service_add(DEVICE_NAME_MQTT, "_blinker", "_tcp", 81, serviceTxtData, 1) );
+    //add another TXT item
+    // ESP_ERROR_CHECK( mdns_service_txt_item_set("_blinker", "_tcp", "deviceName", DEVICE_NAME_MQTT) );
+    //change TXT item value
+    // ESP_ERROR_CHECK( mdns_service_txt_item_set("_http", "_tcp", "u", "admin") );
 }
 
 void get_time(void)
@@ -1050,6 +1076,8 @@ failed1:
                         free(BLINKER_PUB_TOPIC_MQTT);
                         free(BLINKER_SUB_TOPIC_MQTT);
 
+                        mdns_free();
+
                         isMQTTinit = 0;
                     }
 
@@ -1473,6 +1501,8 @@ void blinker_mqtt_init(void)
     BLINKER_LOG_ALL(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_start(client);
+
+    initialise_mdns();
 }
 
 char * mqtt_device_name(void)
