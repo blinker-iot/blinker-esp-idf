@@ -1312,7 +1312,7 @@ void device_register(void)
     if (_aliType) strcat(test_url, _aliType);
     if (_duerType) strcat(test_url, _duerType);
     if (_miType) strcat(test_url, _miType);
-    blinker_https_get("iotdev.clz.me", test_url);
+    blinker_https_get("iot.diandeng.tech", test_url);
 
     blinker_server(BLINKER_CMD_DEVICE_REGISTER_NUMBER);
 

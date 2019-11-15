@@ -433,7 +433,7 @@
 
 #define BLINKER_CMD_TAB_4               1  // 0x00001
 
-#define BLINKER_SERVER_HOST             "iotdev.clz.me"
+#define BLINKER_SERVER_HOST             "iot.diandeng.tech"
 
 #define BLINKER_SERVER_PORT             443
 
