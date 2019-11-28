@@ -182,10 +182,10 @@ typedef struct
     const char *co2;
 } blinker_miot_config_t;
 
-typedef struct
-{
-    blinker_callback_with_begin_t begin;
-} blinker_api_t;
+// typedef struct
+// {
+//     blinker_callback_with_begin_t begin;
+// } blinker_api_t;
 
 typedef struct
 {
@@ -200,7 +200,7 @@ typedef struct
     const char *message;
 } blinker_wechat_config_t;
 
-extern blinker_api_t Blinker;
+// extern blinker_api_t Blinker;
 
 void blinker_aligenie_power_state_init(blinker_callback_with_string_arg_t func);
 
@@ -294,7 +294,9 @@ void blinker_tab_init(BlinkerTab *tab, blinker_callback_with_tab_arg_t _func, bl
 
 void print(const char *key, const char *value, int8_t isRaw);
 
-void blinker_init(const blinker_config_t *_conf);
+// void blinker_init(const blinker_config_t *_conf);
+
+void blinker_init();
 
 
 

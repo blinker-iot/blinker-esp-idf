@@ -35,9 +35,9 @@
 
 static const char *TAG = "blinker";
 
-char auth[] = "Your Device Secret Key";
-char ssid[] = "Your WiFi network SSID or name";
-char pswd[] = "Your WiFi network WPA password or WEP key";
+char auth[] = "6650efab7f0a";
+char ssid[] = "有没有wifi";
+char pswd[] = "i8888888";
 
 BlinkerButton button1 = {.name = "btn-abc"};
 BlinkerNumber number1 = {.name = "num-abc"};
@@ -76,13 +76,12 @@ void data_callback(const cJSON *data)
 void app_main()
 {
     BLINKER_DEBUG_ALL();
-    blinker_config_t init_conf = {
-        .type = BLINKER_WIFI,
-        .wifi = BLINKER_DEFAULT_CONFIG,
-    };
-    blinker_init(&init_conf);
+
     blinker_button_init(&button1, button1_callback);
     blinker_attach_data(data_callback);
 
-    Blinker.begin(auth, ssid, pswd);
+    blinker_init();
+
+    // Blinker.begin(auth, ssid, pswd);
+    // Blinker.begin();
 }

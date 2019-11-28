@@ -2,6 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/queue.h"
 #include "rom/ets_sys.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
@@ -25,9 +26,17 @@
 // #include <sys/socket.h>
 // #include <netdb.h>
 
+#include "lwip/api.h"
+#include "websocket_server.h"
+
+static QueueHandle_t client_queue;
+const static int client_queue_size = 10;
+
 static const char *TAG = "BlinkerMQTT";
 
 static EventGroupHandle_t wifi_event_group;
+static EventGroupHandle_t smart_event_group;
+static EventGroupHandle_t ap_event_group;
 static EventGroupHandle_t http_event_group;
 
 static const int CONNECTED_BIT = BIT0;
@@ -57,7 +66,7 @@ enum smartconfig_step_t sconf_step = sconf_ap_init;
     "\r\n"
 
 #define WOLFSSL_DEMO_THREAD_NAME        "wolfssl_client"
-#define WOLFSSL_DEMO_THREAD_STACK_WORDS 8192
+#define WOLFSSL_DEMO_THREAD_STACK_WORDS 4096
 #define WOLFSSL_DEMO_THREAD_PRORIOTY    6
 
 #define WOLFSSL_DEMO_SNTP_SERVERS       "pool.ntp.org"
@@ -145,6 +154,318 @@ uint8_t         _sharerFrom = BLINKER_MQTT_FROM_AUTHER;
 // #define CONFIG_MQTT_BROKER 
 // #define CONFIG_MQTT_PORT
 
+void websocket_callback(uint8_t num,WEBSOCKET_TYPE_t type,char* msg,uint64_t len) {
+    const static char* TAG = "websocket_callback";
+    // int value;
+
+    switch(type) {
+        case WEBSOCKET_CONNECT:
+            ESP_LOGI(TAG,"client %i connected!",num);
+            // blinker_ws_print("{\"state\":\"connected\"}\n");
+            break;
+            case WEBSOCKET_DISCONNECT_EXTERNAL:
+            ESP_LOGI(TAG,"client %i sent a disconnect message",num);
+            //   led_duty(0);
+            break;
+        case WEBSOCKET_DISCONNECT_INTERNAL:
+            ESP_LOGI(TAG,"client %i was disconnected",num);
+            break;
+        case WEBSOCKET_DISCONNECT_ERROR:
+            ESP_LOGI(TAG,"client %i was disconnected due to an error",num);
+            //   led_duty(0);
+            break;
+        case WEBSOCKET_TEXT:
+            ESP_LOGI(TAG,"client %i sent text, len: %u, msg: %s", num, (uint32_t)len, (char *)msg);
+
+            // blinker_ws_print("{\"state\":\"connected\"}\n");
+
+            if (isFresh_MQTT) free(msgBuf_MQTT);
+
+            // if (strncmp(BLINKER_SUB_TOPIC_MQTT, event->topic, event->topic_len) == 0)
+            // {
+            cJSON *root = cJSON_Parse((char *)msg);
+
+            if (root != NULL)
+            {
+
+                // msgBuf_MQTT = (char *)malloc(((uint32_t)len + 1)*sizeof(char));
+                // strcpy(msgBuf_MQTT, event->data);
+
+                if (sconf_step == sconf_ap_connected)
+                {
+                    cJSON_Delete(root);
+
+                    dataFrom_MQTT = BLINKER_MSG_FROM_WS;
+
+                    if (data_parse_func) data_parse_func((char *)msg);
+                    kaTime = millis();
+                    isAvail_MQTT = 1;
+                    // isFresh_MQTT = 1;
+                    isAlive = 1;
+                }
+                else
+                {
+                    cJSON *_ssid = cJSON_GetObjectItemCaseSensitive(root, "ssid");
+                    cJSON *_pswd = cJSON_GetObjectItemCaseSensitive(root, "pswd");
+
+                    if (cJSON_IsString(_ssid) && (_ssid->valuestring != NULL))
+                    {
+                        mdns_free();
+
+                        wifi_config_t wifi_config = {
+                            .sta = {
+                                .ssid = "",
+                                .password = ""
+                            },
+                        };
+
+                        strcpy((char *)wifi_config.sta.ssid, _ssid->valuestring);
+                        
+                        if (_pswd->valuestring != NULL)
+                        {
+                            strcpy((char *)wifi_config.sta.password, _pswd->valuestring);
+                        }
+
+                        sconf_step = sconf_ap_connect;
+
+                        esp_wifi_deinit();
+
+                        tcpip_adapter_init();
+
+                        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+
+                        ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
+                        // ESP_ERROR_CHECK( esp_wifi_disconnect() );
+                        ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
+                        ESP_ERROR_CHECK( esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
+                        ESP_ERROR_CHECK( esp_wifi_connect() );
+                    }
+                    cJSON_Delete(_ssid);
+                    cJSON_Delete(_pswd);
+                    cJSON_Delete(root);
+                }
+            }
+            else
+            {
+                cJSON_Delete(root);
+            }                
+            
+            // }
+            // else
+            // {
+            //     BLINKER_ERR_LOG(TAG, "not from sub topic!");
+            // }
+            //   if(len) {
+            //     switch(msg[0]) {
+            //       case 'L':
+            //         if(sscanf(msg,"L%i",&value)) {
+            //           ESP_LOGI(TAG,"LED value: %i",value);
+            //         //   led_duty(value);
+            //           ws_server_send_text_all_from_callback(msg,len); // broadcast it!
+            //         }
+            //     }
+            //   }
+            break;
+        case WEBSOCKET_BIN:
+            ESP_LOGI(TAG,"client %i sent binary message of size %i:\n%s",num,(uint32_t)len,msg);
+            break;
+        case WEBSOCKET_PING:
+            ESP_LOGI(TAG,"client %i pinged us with message of size %i:\n%s",num,(uint32_t)len,msg);
+            break;
+        case WEBSOCKET_PONG:
+            ESP_LOGI(TAG,"client %i responded to the ping",num);
+            break;
+    }
+}
+
+// serves any clients
+static void http_serve(struct netconn *conn) {
+    const static char* TAG = "http_server";
+    // const static char HTML_HEADER[] = "HTTP/1.1 200 OK\nContent-type: text/html\n\n";
+    // const static char ERROR_HEADER[] = "HTTP/1.1 404 Not Found\nContent-type: text/html\n\n";
+    // const static char JS_HEADER[] = "HTTP/1.1 200 OK\nContent-type: text/javascript\n\n";
+    // const static char CSS_HEADER[] = "HTTP/1.1 200 OK\nContent-type: text/css\n\n";
+    //const static char PNG_HEADER[] = "HTTP/1.1 200 OK\nContent-type: image/png\n\n";
+    // const static char ICO_HEADER[] = "HTTP/1.1 200 OK\nContent-type: image/x-icon\n\n";
+    //const static char PDF_HEADER[] = "HTTP/1.1 200 OK\nContent-type: application/pdf\n\n";
+    //const static char EVENT_HEADER[] = "HTTP/1.1 200 OK\nContent-Type: text/event-stream\nCache-Control: no-cache\nretry: 3000\n\n";
+    struct netbuf* inbuf;
+    static char* buf;
+    static uint16_t buflen;
+    static err_t err;
+
+    // default page
+    //   extern const uint8_t root_html_start[] asm("_binary_root_html_start");
+    //   extern const uint8_t root_html_end[] asm("_binary_root_html_end");
+    //   const uint32_t root_html_len = root_html_end - root_html_start;
+
+    //   // test.js
+    //   extern const uint8_t test_js_start[] asm("_binary_test_js_start");
+    //   extern const uint8_t test_js_end[] asm("_binary_test_js_end");
+    //   const uint32_t test_js_len = test_js_end - test_js_start;
+
+    //   // test.css
+    //   extern const uint8_t test_css_start[] asm("_binary_test_css_start");
+    //   extern const uint8_t test_css_end[] asm("_binary_test_css_end");
+    //   const uint32_t test_css_len = test_css_end - test_css_start;
+
+    //   // favicon.ico
+    //   extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
+    //   extern const uint8_t favicon_ico_end[] asm("_binary_favicon_ico_end");
+    //   const uint32_t favicon_ico_len = favicon_ico_end - favicon_ico_start;
+
+    //   // error page
+    //   extern const uint8_t error_html_start[] asm("_binary_error_html_start");
+    //   extern const uint8_t error_html_end[] asm("_binary_error_html_end");
+    //   const uint32_t error_html_len = error_html_end - error_html_start;
+
+    netconn_set_recvtimeout(conn,5000); // allow a connection timeout of 1 second
+    ESP_LOGI(TAG,"reading from client...");
+    err = netconn_recv(conn, &inbuf);
+    ESP_LOGI(TAG,"read from client");
+    if(err==ERR_OK) {
+        netbuf_data(inbuf, (void**)&buf, &buflen);
+        if(buf) {
+
+        // default page
+        if     (strstr(buf,"GET / ")
+            && !strstr(buf,"Upgrade: websocket")) {
+            ESP_LOGI(TAG,"Sending /");
+            // netconn_write(conn, HTML_HEADER, sizeof(HTML_HEADER)-1,NETCONN_NOCOPY);
+            // netconn_write(conn, root_html_start,root_html_len,NETCONN_NOCOPY);
+            netconn_close(conn);
+            netconn_delete(conn);
+            netbuf_delete(inbuf);
+        }
+
+        // default page websocket
+        else if(strstr(buf,"GET / ")
+            && strstr(buf,"Upgrade: websocket")) {
+            ESP_LOGI(TAG,"Requesting websocket on /");
+            ws_server_add_client(conn,buf,buflen,"/",websocket_callback);
+
+            blinker_ws_print("{\"state\":\"connected\"}\n");
+
+            netbuf_delete(inbuf);            
+        }
+
+        else if(strstr(buf,"GET /test.js ")) {
+            ESP_LOGI(TAG,"Sending /test.js");
+            // netconn_write(conn, JS_HEADER, sizeof(JS_HEADER)-1,NETCONN_NOCOPY);
+            // netconn_write(conn, test_js_start, test_js_len,NETCONN_NOCOPY);
+            netconn_close(conn);
+            netconn_delete(conn);
+            netbuf_delete(inbuf);
+        }
+
+        else if(strstr(buf,"GET /test.css ")) {
+            ESP_LOGI(TAG,"Sending /test.css");
+            // netconn_write(conn, CSS_HEADER, sizeof(CSS_HEADER)-1,NETCONN_NOCOPY);
+            // netconn_write(conn, test_css_start, test_css_len,NETCONN_NOCOPY);
+            netconn_close(conn);
+            netconn_delete(conn);
+            netbuf_delete(inbuf);
+        }
+
+        else if(strstr(buf,"GET /favicon.ico ")) {
+            ESP_LOGI(TAG,"Sending favicon.ico");
+            // netconn_write(conn,ICO_HEADER,sizeof(ICO_HEADER)-1,NETCONN_NOCOPY);
+            // netconn_write(conn,favicon_ico_start,favicon_ico_len,NETCONN_NOCOPY);
+            netconn_close(conn);
+            netconn_delete(conn);
+            netbuf_delete(inbuf);
+        }
+
+        else if(strstr(buf,"GET /")) {
+            // ESP_LOGI(TAG,"Unknown request, sending error page: %s",buf);
+            // netconn_write(conn, ERROR_HEADER, sizeof(ERROR_HEADER)-1,NETCONN_NOCOPY);
+            // netconn_write(conn, error_html_start, error_html_len,NETCONN_NOCOPY);
+            netconn_close(conn);
+            netconn_delete(conn);
+            netbuf_delete(inbuf);
+        }
+
+        else {
+            ESP_LOGI(TAG,"Unknown request");
+            netconn_close(conn);
+            netconn_delete(conn);
+            netbuf_delete(inbuf);
+        }
+        }
+        else {
+        ESP_LOGI(TAG,"Unknown request (empty?...)");
+        netconn_close(conn);
+        netconn_delete(conn);
+        netbuf_delete(inbuf);
+        }
+    }
+    else { // if err==ERR_OK
+        ESP_LOGI(TAG,"error on read, closing connection");
+        netconn_close(conn);
+        netconn_delete(conn);
+        netbuf_delete(inbuf);
+    }
+}
+
+// handles clients when they first connect. passes to a queue
+static void server_task(void* pvParameters) {
+    const static char* TAG = "server_task";
+    struct netconn *conn, *newconn;
+    static err_t err;
+    client_queue = xQueueCreate(client_queue_size,sizeof(struct netconn*));
+
+    conn = netconn_new(NETCONN_TCP);
+    netconn_bind(conn,NULL,81);
+    netconn_listen(conn);
+    ESP_LOGI(TAG,"server listening");
+    do {
+        err = netconn_accept(conn, &newconn);
+        ESP_LOGI(TAG,"new client");
+        if(err == ERR_OK) {
+            xQueueSendToBack(client_queue,&newconn,portMAX_DELAY);
+            // http_serve(newconn);
+        }
+    } while(err == ERR_OK);
+    netconn_close(conn);
+    netconn_delete(conn);
+    ESP_LOGE(TAG,"task ending, rebooting board");
+    esp_restart();
+}
+
+// receives clients from queue, handles them
+static void server_handle_task(void* pvParameters) {
+    const static char* TAG = "server_handle_task";
+    struct netconn* conn;
+    ESP_LOGI(TAG,"task starting");
+    for(;;) {
+        xQueueReceive(client_queue,&conn,portMAX_DELAY);
+        if(!conn) continue;
+        http_serve(conn);
+    }
+    vTaskDelete(NULL);
+}
+
+static void count_task(void* pvParameters) {
+    const static char* TAG = "count_task";
+    char out[20];
+    int len;
+    int clients;
+    const static char* word = "%i";
+    uint8_t n = 0;
+    const int DELAY = 1000 / portTICK_PERIOD_MS; // 1 second
+
+    ESP_LOGI(TAG,"starting task");
+    for(;;) {
+        len = sprintf(out,word,n);
+        clients = ws_server_send_text_all(out,len);
+        if(clients > 0) {
+        //ESP_LOGI(TAG,"sent: \"%s\" to %i clients",out,clients);
+        }
+        n++;
+        vTaskDelay(DELAY);
+    }
+}
+
 void weather_data(blinker_callback_with_json_arg_t func)
 {
     _weather_func = func;
@@ -164,10 +485,14 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         case SYSTEM_EVENT_STA_START:
             if (sconf_step == sconf_begin)
             {
-                xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, NULL);
+                BLINKER_LOG(TAG, "xTaskCreate smartconfig_task.");
+
+                xTaskCreate(smartconfig_task, "smartconfig_task", 1024, NULL, 3, NULL);
             }
             else
             {
+                BLINKER_LOG(TAG, "esp_wifi_connect.");
+
                 esp_wifi_connect();
             }
             break;
@@ -175,7 +500,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             BLINKER_LOG(TAG, "got ip:%s",
                     ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
             xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
-
+            #if defined (CONFIG_BLINKER_SMART_CONFIG)
+                xEventGroupSetBits(smart_event_group, CONNECTED_BIT);
+            #elif defined (CONFIG_BLINKER_AP_CONFIG)
+                xEventGroupSetBits(ap_event_group, CONNECTED_BIT);
+            #endif
             sconf_step = sconf_ap_connected;
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -190,7 +519,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 
                 xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
                 initialise_wifi();
-                xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, NULL);
+                xTaskCreate(smartconfig_task, "smartconfig_task", 1024, NULL, 3, NULL);
             }
             else
             {
@@ -198,19 +527,38 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
                 xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
             }
             break;
+        case SYSTEM_EVENT_AP_STACONNECTED:
+            ESP_LOGI(TAG, "station:"MACSTR" join, AID=%d",
+                    MAC2STR(event->event_info.sta_connected.mac),
+                    event->event_info.sta_connected.aid);
+            break;
+        case SYSTEM_EVENT_AP_STADISCONNECTED:
+            ESP_LOGI(TAG, "station:"MACSTR"leave, AID=%d",
+                    MAC2STR(event->event_info.sta_disconnected.mac),
+                    event->event_info.sta_disconnected.aid);
+            break;
         default:
             break;
     }
     return ESP_OK;
 }
 
-void wifi_init_sta(const char * _key, const char * _ssid, const char * _pswd, blinker_callback_with_string_arg_t _func)
+void blinker_set_auth(const char * _key, blinker_callback_with_string_arg_t _func)
+{
+    blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
+    strcpy(blinker_authkey, _key);
+
+    data_parse_func = _func;
+}
+
+// void wifi_init_sta(const char * _key, const char * _ssid, const char * _pswd, blinker_callback_with_string_arg_t _func)
+void wifi_init_sta(const char * _ssid, const char * _pswd)
 {
     // blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
     // strcpy(blinker_authkey, _key);
-    blinker_authkey = _key;
+    // // blinker_authkey = _key;
 
-    data_parse_func = _func;
+    // data_parse_func = _func;
 
     ESP_ERROR_CHECK( nvs_flash_init() );
 
@@ -243,36 +591,129 @@ void wifi_init_sta(const char * _key, const char * _ssid, const char * _pswd, bl
             (char *)wifi_config.sta.ssid, (char *)wifi_config.sta.password);
 }
 
-void wifi_init_smart(const char * _key)
+// void wifi_init_smart(const char * _key, blinker_callback_with_string_arg_t _func)
+void wifi_init_smart()
 {
-    blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
-    strcpy(blinker_authkey, _key);
+    // blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
+    // strcpy(blinker_authkey, _key);
+    // // blinker_authkey = _key;
+
+    // data_parse_func = _func;
 
     ESP_ERROR_CHECK( nvs_flash_init() );
 
-    sconf_step = sconf_ap_connect;
-
     wifi_event_group = xEventGroupCreate();
+
+    smart_event_group = xEventGroupCreate();
 
     tcpip_adapter_init();
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL) );
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    // wifi_config_t wifi_config = {
-    //     .sta = {
-    //         .ssid = EXAMPLE_ESP_WIFI_SSID,
-    //         .password = EXAMPLE_ESP_WIFI_PASS
-    //     },
-    // };
+
+    sconf_step = sconf_begin;
+
+    wifi_config_t wifi_config;
+    esp_wifi_get_config(ESP_IF_WIFI_STA, &wifi_config);
+
+    BLINKER_LOG_ALL(TAG, "wifi_config: %s", (char *)wifi_config.sta.ssid);
+    if (strlen((char *)wifi_config.sta.ssid) > 1)
+    {
+        sconf_step = sconf_ap_connect;
+    }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    // ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
+
+    xEventGroupWaitBits(smart_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
 
     BLINKER_LOG_ALL(TAG, "wifi_init_smart finished.");
     // BLINKER_LOG_ALL(TAG, "connect to ap SSID:%s password:%s",
     //          EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+}
+
+// void wifi_init_ap(const char * _key, blinker_callback_with_string_arg_t _func)
+void wifi_init_ap()
+{
+    // blinker_authkey = (char *)malloc(strlen(_key)*sizeof(char));
+    // strcpy(blinker_authkey, _key);
+
+    // data_parse_func = _func;
+
+    wifi_event_group = xEventGroupCreate();
+
+    ap_event_group = xEventGroupCreate();
+
+    tcpip_adapter_init();
+    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    sconf_step = sconf_begin;    
+
+    wifi_config_t _wifi_config;
+    esp_wifi_get_config(ESP_IF_WIFI_STA, &_wifi_config);
+
+    BLINKER_LOG_ALL(TAG, "wifi_config: %s", (char *)_wifi_config.sta.ssid);
+    if (strlen((char *)_wifi_config.sta.ssid) > 1)
+    {
+        sconf_step = sconf_ap_connect;
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+        ESP_ERROR_CHECK(esp_wifi_start() );
+
+        websocket_init();
+    }
+    else
+    {
+        char ap_ssid[30];
+        strcpy(ap_ssid, "DiyArduino_");
+        strcat(ap_ssid, macDeviceName());
+        wifi_config_t wifi_config = {
+            .ap = {
+                .ssid = "",
+                .ssid_len = 0,
+                .password = "",
+                .max_connection = 4,
+                .authmode = WIFI_AUTH_WPA_WPA2_PSK
+            },
+        };    
+        strcpy((char *)wifi_config.ap.ssid, ap_ssid);
+        wifi_config.ap.ssid_len = strlen(ap_ssid);
+        // if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
+            wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+        // }
+
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
+        ESP_ERROR_CHECK(esp_wifi_start());
+
+        ESP_LOGI(TAG, "wifi_init_softap SSID:%s ", ap_ssid);
+
+        // initialize mDNS
+        ESP_ERROR_CHECK( mdns_init() );
+        // set mDNS hostname (required if you want to advertise services)
+        ESP_ERROR_CHECK( mdns_hostname_set(ap_ssid) );
+        // set default mDNS instance name
+        ESP_ERROR_CHECK( mdns_instance_name_set(ap_ssid) );
+
+        // structure with TXT records
+        mdns_txt_item_t serviceTxtData[1] = {
+            {"deviceName", ap_ssid}
+        };
+
+        //initialize service
+        ESP_ERROR_CHECK( mdns_service_add(DEVICE_NAME_MQTT, "_blinker", "_tcp", 81, serviceTxtData, 1) );
+
+        websocket_init();
+    }
+
+    ESP_LOGI(TAG, "wifi_init_softap");
+    
+    xEventGroupWaitBits(ap_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+    
+    ESP_LOGI(TAG, "wifi_init_softap finished.");
 }
 
 void sc_callback(smartconfig_status_t status, void *pdata)
@@ -377,6 +818,27 @@ void initialise_mdns(void)
     // ESP_ERROR_CHECK( mdns_service_txt_item_set("_blinker", "_tcp", "deviceName", DEVICE_NAME_MQTT) );
     //change TXT item value
     // ESP_ERROR_CHECK( mdns_service_txt_item_set("_http", "_tcp", "u", "admin") );
+
+    // websocket_init();
+    // vTaskDelete(wstask);
+
+    // ws_server_start();
+    // xTaskCreate(&server_task,"server_task",1536,NULL,9,NULL);
+    // xTaskCreate(&server_handle_task,"server_handle_task",2048,NULL,6,NULL);
+    // xTaskCreate(&blinker_websocket_server,"blinker_websocket_server",6000,NULL,2,NULL);
+    // vTaskDelete(wstask);
+}
+
+void websocket_init(void)
+{
+    ws_server_start();
+    xTaskCreate(&server_task,"server_task",1536,NULL,9,NULL);
+    xTaskCreate(&server_handle_task,"server_handle_task",1536,NULL,6,NULL);
+
+    // #if defined (CONFIG_BLINKER_AP_CONFIG)
+    //     xEventGroupWaitBits(ap_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+    // #endif
+    // xTaskCreate(&blinker_websocket_server,"blinker_websocket_server",8192,NULL,2,NULL);
 }
 
 void get_time(void)
@@ -386,8 +848,8 @@ void get_time(void)
     int sntp_retry_time = 0;
 
     sntp_setoperatingmode(0);
-    sntp_setservername(0, WOLFSSL_DEMO_SNTP_SERVERS);
-    sntp_setservername(1, "210.72.145.44");
+    sntp_setservername(0, "ntp1.aliyun.com");
+    sntp_setservername(1, "120.25.108.11");
     sntp_setservername(2, "time.pool.aliyun.com");
     sntp_init();
 
@@ -462,9 +924,9 @@ int8_t check_register_data(const char * _data)
     return 1;
 }
 
-    char payload[1024] = {0};
-    uint8_t need_read = 0;
-    uint16_t check_num = 0;
+    // char payload[1024] = {0};
+    // uint8_t need_read = 0;
+    // uint16_t check_num = 0;
 
 // void https_get_task(void)
 // {
@@ -1035,7 +1497,7 @@ failed1:
 
                     cJSON_Delete(root);
                 }
-
+                
                 vTaskDelete(NULL);
                 return;
             case BLINKER_CMD_DEVICE_REGISTER_NUMBER :
@@ -1179,7 +1641,7 @@ failed1:
 
                     cJSON_Delete(root);
                 }
-
+                
                 vTaskDelete(NULL);
                 return;
         }
@@ -1312,7 +1774,7 @@ void device_register(void)
     if (_aliType) strcat(test_url, _aliType);
     if (_duerType) strcat(test_url, _duerType);
     if (_miType) strcat(test_url, _miType);
-    blinker_https_get("iot.diandeng.tech", test_url);
+    blinker_https_get(BLINKER_SERVER_HOST, test_url);
 
     blinker_server(BLINKER_CMD_DEVICE_REGISTER_NUMBER);
 
@@ -1400,6 +1862,8 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                     {
                         BLINKER_LOG_ALL(TAG, "Authority uuid");
 
+                        BLINKER_LOG_FreeHeap(TAG);
+
                         cJSON_Delete(root);
 
                         // msgBuf_MQTT = (char *)malloc((event->data_len + 1)*sizeof(char));
@@ -1408,7 +1872,7 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                         if (data_parse_func) data_parse_func(event->data);
                         kaTime = millis();
                         isAvail_MQTT = 1;
-                        isFresh_MQTT = 1;
+                        // isFresh_MQTT = 1;
                         isAlive = 1;
                     }
                     else if (strncmp(BLINKER_CMD_ALIGENIE, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
@@ -1707,6 +2171,46 @@ int8_t check_print_limit(void)
     }
 }
 
+int8_t blinker_print(char *data, uint8_t need_check)
+{
+    if (dataFrom_MQTT == BLINKER_MSG_FROM_WS)
+    {
+        dataFrom_MQTT = BLINKER_MSG_FROM_MQTT;
+
+        if (need_check)
+        {
+            if (!check_print_span())
+            {                
+                respTime = millis();
+                return 0;
+            }
+        }
+
+        respTime = millis();
+
+        char *_data;
+
+        _data = (char*)malloc((strlen(data)+2)*sizeof(char));
+        strcpy(_data, data);
+        strcat(_data, "\n");
+
+        return blinker_ws_print(_data);
+    }
+    else
+    {
+        return blinker_mqtt_print(data, need_check);
+    }    
+}
+
+int8_t blinker_ws_print(char *data)
+{
+    BLINKER_ERR_LOG(TAG, "ws response: %s ", data);
+
+    BLINKER_LOG_FreeHeap(TAG);
+
+    return (ws_server_send_text_all(data, strlen(data)) > 0) ? 1 : 0;
+}
+
 int8_t blinker_mqtt_print(char *data, uint8_t need_check)
 {
     if (isMQTTinit)
@@ -1779,6 +2283,9 @@ int8_t blinker_mqtt_print(char *data, uint8_t need_check)
 
         int msg_id = esp_mqtt_client_publish(blinker_mqtt_client, BLINKER_PUB_TOPIC_MQTT, data, 0, 0, 0);
         BLINKER_LOG_ALL(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+        BLINKER_LOG_FreeHeap(TAG);
+
         return 1;
     }
 

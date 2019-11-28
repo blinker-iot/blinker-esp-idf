@@ -47,7 +47,7 @@
 
 static const char *TAG = "BlinkerApi";
 
-blinker_api_t Blinker;
+// blinker_api_t Blinker;
 
 int8_t _parsed = 0;
 int8_t autoFormat = 0;
@@ -979,7 +979,7 @@ void check_auto_format(void)
             {
                 uint8_t need_check = 1;
                 if (strstr(send_buf, BLINKER_CMD_ONLINE)) need_check = 0;
-                blinker_mqtt_print(send_buf, need_check);
+                blinker_print(send_buf, need_check);
             }
             free(send_buf);
             send_buf = NULL;
@@ -989,49 +989,96 @@ void check_auto_format(void)
     }
 }
 
-void default_init(const char * key, const char * ssid, const char * pswd)
+#if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
+// void default_init(const char * key, const char * ssid, const char * pswd)
+void default_init()
 {
-    BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", key, ssid, pswd);
-    wifi_init_sta(key, ssid, pswd, parse);
+    // BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", 
+    //                 key, ssid, pswd);
+    // wifi_init_sta(key, ssid, pswd, parse);
+
+    BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", 
+                    CONFIG_BLINKER_AUTHKEY, 
+                    CONFIG_BLINKER_WLAN_SSID, 
+                    CONFIG_BLINKER_WLAN_PSWD);
+    wifi_init_sta(CONFIG_BLINKER_WLAN_SSID, 
+                CONFIG_BLINKER_WLAN_PSWD);
+    websocket_init();
     device_register();
     blinker_mqtt_init();
     blinker_fresh_sharers();
     run();
 }
 
-void smart_init(const char * key)
+#elif defined (CONFIG_BLINKER_SMART_CONFIG)
+
+// void smart_init(const char * key)
+void smart_init()
 {
-    BLINKER_LOG_ALL(TAG, "KEY: %s", key);
-    wifi_init_smart(key);
+    // BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
+    wifi_init_smart();
+    websocket_init();
     device_register();
     blinker_mqtt_init();
     blinker_fresh_sharers();
     run();
 }
 
-void blinker_init(const blinker_config_t *_conf)
+#elif defined (CONFIG_BLINKER_AP_CONFIG)
+
+// void smart_init(const char * key)
+void ap_init()
 {
-    if (_conf->wifi == BLINKER_DEFAULT_CONFIG)
-    {
-        Blinker.begin = default_init;
-    }
-    else
-    {
-        Blinker.begin = smart_init;
-    }
+    // BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
+    wifi_init_ap();
+    // websocket_init();
+    device_register();
+    blinker_mqtt_init();
+    blinker_fresh_sharers();
+    websocket_init();
+    run();
+}
+
+#endif
+
+// void blinker_init(const blinker_config_t *_conf)
+void blinker_init()
+{
+    // if (_conf->wifi == BLINKER_DEFAULT_CONFIG)
+    // {
+    //     Blinker.begin = default_init;
+    // }
+    // else
+    // {
+    //     Blinker.begin = smart_init;
+    // }
     
-    if (_conf->aligenie != NULL)
-    {
-        ali_type(_conf->aligenie, aligenie_parse);
-    }
-    if (_conf->dueros != NULL)
-    {
-        duer_type(_conf->dueros, dueros_parse);
-    }
-    if (_conf->miot != NULL)
-    {
-        mi_type(_conf->miot, miot_parse);
-    }
+    // if (_conf->aligenie != NULL)
+    // {
+    //     ali_type(_conf->aligenie, aligenie_parse);
+    // }
+    // if (_conf->dueros != NULL)
+    // {
+    //     duer_type(_conf->dueros, dueros_parse);
+    // }
+    // if (_conf->miot != NULL)
+    // {
+    //     mi_type(_conf->miot, miot_parse);
+    // }
+
+    BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
+
+    blinker_set_auth(CONFIG_BLINKER_AUTHKEY, parse);
+
+    #if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
+        // Blinker.begin = default_init;
+        default_init();
+    #elif defined (CONFIG_BLINKER_SMART_CONFIG)
+        // Blinker.begin = smart_init;
+        smart_init();
+    #elif defined (CONFIG_BLINKER_AP_CONFIG)
+        ap_init();
+    #endif
 }
 
 xTaskHandle pvCreatedTask_ToggleLed4;
@@ -1040,7 +1087,7 @@ void run(void)
 {
     xTaskCreate(&blinker_run,
                 "blinker_run",
-                2048,
+                1024,
                 NULL,
                 4,
                 pvCreatedTask_ToggleLed4);
@@ -1056,8 +1103,7 @@ void heart_beat(cJSON *_data)
         {
             // char data[512] = "{\"state\":\"online\"}";
             
-            // blinker_mqtt_print(data);
-
+            // blinker_print(data);
             print(BLINKER_CMD_STATE, BLINKER_CMD_ONLINE, 0);
 
             _parsed = 1;
@@ -1083,14 +1129,30 @@ void parse(const char *data)
 
     cJSON *_data = cJSON_GetObjectItemCaseSensitive(root, "data");
 
-    heart_beat(_data);
-    widget_parse(_data);
-
-    if (!_parsed)
+    if (_data == NULL) 
     {
-        if (data_availablie_func)
+        heart_beat(root);
+        widget_parse(root);
+
+        if (!_parsed)
         {
-            data_availablie_func(_data);
+            if (data_availablie_func)
+            {
+                data_availablie_func(root);
+            }
+        }
+    }
+    else
+    {
+        heart_beat(_data);
+        widget_parse(_data);
+
+        if (!_parsed)
+        {
+            if (data_availablie_func)
+            {
+                data_availablie_func(_data);
+            }
         }
     }
 

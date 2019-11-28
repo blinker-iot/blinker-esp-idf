@@ -1,6 +1,8 @@
 #ifndef BLINKER_CONFIG_H
 #define BLINKER_CONFIG_H
 
+#include "BlinkerServer.h"
+
 #define BLINKER_VERSION                 "0.1.0"
 
 #define BLINKER_CONNECT_TIMEOUT_MS      10000UL
@@ -433,7 +435,7 @@
 
 #define BLINKER_CMD_TAB_4               1  // 0x00001
 
-#define BLINKER_SERVER_HOST             "iot.diandeng.tech"
+// #define BLINKER_SERVER_HOST             "iot.diandeng.tech"
 
 #define BLINKER_SERVER_PORT             443
 
