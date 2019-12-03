@@ -26,7 +26,7 @@ config BLINKER_AUTHKEY
 
 choice BLINKER_CONFIG_TYPE
     prompt "Choose WLAN config type"
-    default BLINKER_DEFAULT_CONFIG
+    default BLINKER_SMART_CONFIG
     help
         Choose the WLAN config type you want to use.
 
@@ -66,13 +66,27 @@ config BLINKER_PRO_TYPE
     string "Blinker Pro Type"
     default "Pro Device Type Key"
     help
-        Blinker Auth key for Blinker Server to identify device.
+        Blinker Type key for Blinker Server to identify device.
 
 config BLINKER_PRO_AUTH
-    string "Blinker Pro Authkey"
+    string "Blinker Pro Auth"
     default "Pro Device Auth Key"
     help
-        Blinker Type key for Blinker Server to identify device.
+        Blinker Auth key for Blinker Server to identify device.
+
+choice BLINKER_CONFIG_TYPE
+    prompt "Choose WLAN config type"
+    default BLINKER_SMART_CONFIG
+    help
+        Choose the WLAN config type you want to use.
+
+        Currently we support SMART_CONFIG/AP_CONFIG.
+
+config BLINKER_SMART_CONFIG
+    bool "SMART_CONFIG"
+config BLINKER_AP_CONFIG
+    bool "AP_CONFIG"
+endchoice
 
 endmenu  # BLINKER_PRO
 

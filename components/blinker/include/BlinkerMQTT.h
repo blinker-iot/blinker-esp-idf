@@ -3,11 +3,17 @@
 
 #include "BlinkerDebug.h"
 
+// void blinker_spiffs_auth_check(void);
+
+uint8_t blinker_auth_check(void);
+
 void weather_data(blinker_callback_with_json_arg_t func);
 
 void aqi_data(blinker_callback_with_json_arg_t func);
 
 void blinker_set_auth(const char *_key, blinker_callback_with_string_arg_t _func);
+
+void blinker_set_type_auth(const char *_type, const char *_key, blinker_callback_with_string_arg_t _func);
 
 void wifi_init_sta(const char * _ssid, const char * _pswd);
 
@@ -56,5 +62,9 @@ int8_t blinker_aligenie_mqtt_print(char *data);
 int8_t blinker_dueros_mqtt_print(char *data);
 
 int8_t blinker_miot_mqtt_print(char *data);
+
+void blinker_reset(void);
+
+void device_get_auth(void);
 
 #endif

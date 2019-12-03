@@ -579,6 +579,8 @@
 
 #define BLINKER_CMD_DEVICE_REGISTER_NUMBER      27
 
+#define BLINKER_CMD_DEVICE_AUTH_NUMBER          28
+
 #define BLINKER_CMD_DEFAULT_NUMBER              0
 
 #define BLINKER_MQTT_MAX_SHARERS_NUM            9
