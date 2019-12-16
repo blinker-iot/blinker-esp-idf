@@ -47,7 +47,7 @@
 
 static const char *TAG = "BlinkerApi";
 
-blinker_api_t Blinker;
+// blinker_api_t Blinker;
 
 int8_t _parsed = 0;
 int8_t autoFormat = 0;
@@ -979,7 +979,7 @@ void check_auto_format(void)
             {
                 uint8_t need_check = 1;
                 if (strstr(send_buf, BLINKER_CMD_ONLINE)) need_check = 0;
-                blinker_mqtt_print(send_buf, need_check);
+                blinker_print(send_buf, need_check);
             }
             free(send_buf);
             send_buf = NULL;
@@ -989,49 +989,201 @@ void check_auto_format(void)
     }
 }
 
-void default_init(const char * key, const char * ssid, const char * pswd)
+#if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
+// void default_init(const char * key, const char * ssid, const char * pswd)
+void default_init()
 {
-    BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", key, ssid, pswd);
-    wifi_init_sta(key, ssid, pswd, parse);
+    // BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", 
+    //                 key, ssid, pswd);
+    // wifi_init_sta(key, ssid, pswd, parse);
+
+    BLINKER_LOG_ALL(TAG, "KEY: %s, SSID: %s, PSWD: %s", 
+                    CONFIG_BLINKER_AUTHKEY, 
+                    CONFIG_BLINKER_WLAN_SSID, 
+                    CONFIG_BLINKER_WLAN_PSWD);
+    wifi_init_sta(CONFIG_BLINKER_WLAN_SSID, 
+                CONFIG_BLINKER_WLAN_PSWD);
+    websocket_init();
     device_register();
     blinker_mqtt_init();
     blinker_fresh_sharers();
     run();
 }
 
-void smart_init(const char * key)
+#elif defined (CONFIG_BLINKER_SMART_CONFIG)
+
+// void smart_init(const char * key)
+void smart_init()
 {
-    BLINKER_LOG_ALL(TAG, "KEY: %s", key);
-    wifi_init_smart(key);
+    // BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
+    wifi_init_smart();
+    websocket_init();
     device_register();
     blinker_mqtt_init();
     blinker_fresh_sharers();
     run();
 }
 
-void blinker_init(const blinker_config_t *_conf)
+#elif defined (CONFIG_BLINKER_AP_CONFIG)
+
+// void smart_init(const char * key)
+void ap_init()
 {
-    if (_conf->wifi == BLINKER_DEFAULT_CONFIG)
-    {
-        Blinker.begin = default_init;
-    }
-    else
-    {
-        Blinker.begin = smart_init;
-    }
-    
-    if (_conf->aligenie != NULL)
-    {
-        ali_type(_conf->aligenie, aligenie_parse);
-    }
-    if (_conf->dueros != NULL)
-    {
-        duer_type(_conf->dueros, dueros_parse);
-    }
-    if (_conf->miot != NULL)
-    {
-        mi_type(_conf->miot, miot_parse);
-    }
+    // BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
+    wifi_init_ap();
+    // websocket_init();
+    device_register();
+    blinker_mqtt_init();
+    blinker_fresh_sharers();
+    websocket_init();
+    run();
+}
+
+#endif
+
+// #define BLINKER_BUTTON_PIN 16
+
+// void blinker_button_init(int8_t active)
+// {
+//     gpio_install_isr_service(0);
+//     gpio_config_t gpio_conf;
+
+//     if (active)
+//     {
+//         gpio_conf.intr_type = GPIO_INTR_ANYEDGE;
+//         gpio_conf.mode = GPIO_MODE_INPUT;
+//         gpio_conf.pin_bit_mask = (1ULL << BLINKER_BUTTON_PIN);
+//         gpio_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+//         gpio_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+//     }
+//     else
+//     {
+//         gpio_conf.intr_type = GPIO_INTR_ANYEDGE;
+//         gpio_conf.mode = GPIO_MODE_INPUT;
+//         gpio_conf.pin_bit_mask = (1ULL << BLINKER_BUTTON_PIN);
+//         gpio_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+//         gpio_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+//     }
+// }
+
+#include "iot_button.h"
+
+void button_tap_cb(void* arg)
+{
+    char* pstr = (char*) arg;
+    BLINKER_LOG(TAG, "tap cb (%s), heap: %d\n", pstr, esp_get_free_heap_size());
+}
+
+void button_press_2s_cb(void* arg)
+{
+    BLINKER_LOG(TAG, "press 2s, heap: %d\n", esp_get_free_heap_size());
+
+    blinker_reset();
+}
+
+void button_press_5s_cb(void* arg)
+{
+    BLINKER_LOG(TAG, "press 5s, heap: %d\n", esp_get_free_heap_size());
+}
+
+void button_test()
+{
+    printf("before btn init, heap: %d\n", esp_get_free_heap_size());
+    button_handle_t btn_handle = iot_button_create(5, 1);
+    iot_button_set_evt_cb(btn_handle, BUTTON_CB_PUSH, button_tap_cb, "PUSH");
+    iot_button_set_evt_cb(btn_handle, BUTTON_CB_RELEASE, button_tap_cb, "RELEASE");
+    iot_button_set_evt_cb(btn_handle, BUTTON_CB_TAP, button_tap_cb, "TAP");
+    // iot_button_set_serial_cb(btn_handle, 2, 1000/portTICK_RATE_MS, button_tap_cb, "SERIAL");
+
+    iot_button_add_custom_cb(btn_handle, 2, button_press_2s_cb, NULL);
+    iot_button_add_custom_cb(btn_handle, 5, button_press_5s_cb, NULL);
+    printf("after btn init, heap: %d\n", esp_get_free_heap_size());
+
+    // vTaskDelay(100000 / portTICK_PERIOD_MS);
+    // printf("free btn: heap:%d\n", esp_get_free_heap_size());
+    // iot_button_delete(btn_handle);
+    // printf("after free btn: heap:%d\n", esp_get_free_heap_size());
+}
+
+// void blinker_init(const blinker_config_t *_conf)
+void blinker_init()
+{
+    BLINKER_LOG_FreeHeap(TAG);
+
+    printf("========================================================\n");
+
+    printf("\n");
+    printf(" __       __                __\n");
+    printf("/\\ \\     /\\ \\    __        /\\ \\              v%s\n", BLINKER_VERSION);
+    printf("\\ \\ \\___ \\ \\ \\  /\\_\\    ___\\ \\ \\/'\\      __   _ __   \n");
+    printf(" \\ \\ '__`\\\\ \\ \\ \\/\\ \\ /' _ `\\ \\ , <    /'__`\\/\\`'__\\ \n");
+    printf("  \\ \\ \\L\\ \\\\ \\ \\_\\ \\ \\/\\ \\/\\ \\ \\ \\\\`\\ /\\  __/\\ \\ \\./ \n");
+    printf("   \\ \\_,__/ \\ \\__\\\\ \\_\\ \\_\\ \\_\\ \\_\\ \\_\\ \\____\\\\ \\_\\  \n");
+    printf("    \\/___/   \\/__/ \\/_/\\/_/\\/_/\\/_/\\/_/\\/____/ \\/_/  \n");
+    printf("    To better use blinker with your IoT project!\n");
+    printf("    Download latest blinker library here!\n");
+    printf("    => https://github.com/blinker-iot/blinker-freertos\n\n");
+
+    #if defined (CONFIG_BLINKER_MODE_WIFI)
+        printf("    BLINKER_WIFI device init\n");
+    #elif defined (CONFIG_BLINKER_MODE_PRO)
+        printf("    BLINKER_PRO device init\n");
+    #endif
+
+    printf("\n========================================================\n");
+
+    button_test();
+
+    // blinker_spiffs_init();
+    // blinker_spiffs_auth_check();
+
+#if defined (CONFIG_BLINKER_ALIGENIE_LIGHT)
+        ali_type(BLINKER_ALIGENIE_LIGHT, aligenie_parse);
+    #elif defined (CONFIG_BLINKER_ALIGENIE_OUTLET)
+        ali_type(BLINKER_ALIGENIE_OUTLET, aligenie_parse);
+    #elif defined (CONFIG_BLINKER_ALIGENIE_MULTI_OUTLET)
+        ali_type(BLINKER_ALIGENIE_MULTI_OUTLET, aligenie_parse);
+    #elif defined (CONFIG_BLINKER_ALIGENIE_SENSOR)
+        ali_type(BLINKER_ALIGENIE_SENSOR, aligenie_parse);
+    #endif
+
+    #if defined (CONFIG_BLINKER_DUEROS_LIGHT)
+        duer_type(BLINKER_DUEROS_LIGHT, dueros_parse);
+    #elif defined (CONFIG_BLINKER_DUEROS_OUTLET)
+        duer_type(BLINKER_DUEROS_OUTLET, dueros_parse);
+    #elif defined (CONFIG_BLINKER_DUEROS_MULTI_OUTLET)
+        duer_type(BLINKER_DUEROS_MULTI_OUTLET, dueros_parse);
+    #elif defined (CONFIG_BLINKER_DUEROS_SENSOR)
+        duer_type(BLINKER_DUEROS_SENSOR, dueros_parse);
+    #endif
+
+    #if defined (CONFIG_BLINKER_MIOT_LIGHT)
+        mi_type(BLINKER_MIOT_LIGHT, miot_parse);
+    #elif defined (CONFIG_BLINKER_MIOT_OUTLET)
+        mi_type(BLINKER_MIOT_OUTLET, miot_parse);
+    #elif defined (CONFIG_BLINKER_MIOT_MULTI_OUTLET)
+        mi_type(BLINKER_MIOT_MULTI_OUTLET, miot_parse);
+    #elif defined (CONFIG_BLINKER_MIOT_SENSOR)
+        mi_type(BLINKER_MIOT_SENSOR, miot_parse);
+    #endif
+
+    #if defined (CONFIG_BLINKER_MODE_WIFI)
+        BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
+
+        blinker_set_auth(CONFIG_BLINKER_AUTHKEY, parse);
+    #elif defined (CONFIG_BLINKER_MODE_PRO)
+        BLINKER_LOG_ALL(TAG, "TYPE: %s, KEY: %s", CONFIG_BLINKER_PRO_TYPE, CONFIG_BLINKER_PRO_AUTH);
+
+        blinker_set_type_auth(CONFIG_BLINKER_PRO_TYPE, CONFIG_BLINKER_PRO_AUTH, parse);
+    #endif
+
+    #if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
+        default_init();
+    #elif defined (CONFIG_BLINKER_SMART_CONFIG)
+        smart_init();
+    #elif defined (CONFIG_BLINKER_AP_CONFIG)
+        ap_init();
+    #endif
 }
 
 xTaskHandle pvCreatedTask_ToggleLed4;
@@ -1040,7 +1192,7 @@ void run(void)
 {
     xTaskCreate(&blinker_run,
                 "blinker_run",
-                2048,
+                1280,
                 NULL,
                 4,
                 pvCreatedTask_ToggleLed4);
@@ -1056,8 +1208,7 @@ void heart_beat(cJSON *_data)
         {
             // char data[512] = "{\"state\":\"online\"}";
             
-            // blinker_mqtt_print(data);
-
+            // blinker_print(data);
             print(BLINKER_CMD_STATE, BLINKER_CMD_ONLINE, 0);
 
             _parsed = 1;
@@ -1083,14 +1234,30 @@ void parse(const char *data)
 
     cJSON *_data = cJSON_GetObjectItemCaseSensitive(root, "data");
 
-    heart_beat(_data);
-    widget_parse(_data);
-
-    if (!_parsed)
+    if (_data == NULL) 
     {
-        if (data_availablie_func)
+        heart_beat(root);
+        widget_parse(root);
+
+        if (!_parsed)
         {
-            data_availablie_func(_data);
+            if (data_availablie_func)
+            {
+                data_availablie_func(root);
+            }
+        }
+    }
+    else
+    {
+        heart_beat(_data);
+        widget_parse(_data);
+
+        if (!_parsed)
+        {
+            if (data_availablie_func)
+            {
+                data_availablie_func(_data);
+            }
         }
     }
 
