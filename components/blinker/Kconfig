@@ -15,6 +15,18 @@ config BLINKER_MODE_PRO
     bool "BLINKER_PRO"
 endchoice
 
+config BLINKER_SERVER_HTTPS
+    string "Blinker Server https"
+    default "https://iot.diandeng.tech"
+    help
+        Blinker Server to identify device.
+
+config BLINKER_SERVER_HOST
+    string "Blinker Server host"
+    default "iot.diandeng.tech"
+    help
+        Blinker Server to identify device.
+
 menu "BLINKER_WIFI"
     depends on BLINKER_MODE_WIFI
 
