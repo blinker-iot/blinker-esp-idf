@@ -244,6 +244,7 @@ void blinker_dueros_query_init(blinker_callback_with_int32_arg_t func);
 
 void blinker_dueros_multi_query_init(blinker_callback_with_int32_uint8_arg_t func);
 
+void blinker_dueros_print(const blinker_dueros_config_t *config);
 
 
 void blinker_miot_power_state_init(blinker_callback_with_string_arg_t func);

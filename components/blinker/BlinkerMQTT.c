@@ -2614,10 +2614,11 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
                         cJSON_Delete(root);
 
-                        if (aligenie_parse_func) aligenie_parse_func(event->data);
                         aliKaTime = millis();
                         isAliAlive = 1;
                         isAliAvail = 1;
+
+                        if (aligenie_parse_func) aligenie_parse_func(event->data);
                     }
                     else if (strncmp(BLINKER_CMD_DUEROS, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
                     {
@@ -2625,10 +2626,11 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
                         cJSON_Delete(root);
 
-                        if (dueros_parse_func) dueros_parse_func(event->data);
                         duerKaTime = millis();
                         isDuerAlive = 1;
                         isDuerAvail = 1;
+
+                        if (dueros_parse_func) dueros_parse_func(event->data);
                     }
                     else if (strncmp(BLINKER_CMD_MIOT, _uuid->valuestring, strlen(_uuid->valuestring)) == 0)
                     {
@@ -2636,10 +2638,11 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
                         cJSON_Delete(root);
 
-                        if (miot_parse_func) miot_parse_func(event->data);
                         miKaTime = millis();
                         isMIOTAlive = 1;
                         isMIOTAvail = 1;
+
+                        if (miot_parse_func) miot_parse_func(event->data);
                     }
                     else
                     {
@@ -2691,7 +2694,7 @@ void blinker_mqtt_init(void)
         .password = MQTT_KEY_MQTT,
         .port = BLINKER_MQTT_ALIYUN_PORT,
         .transport = MQTT_TRANSPORT_OVER_SSL,
-        .task_stack = 2048,
+        .task_stack = 3072,
         // .cert_pem = (const char *)iot_eclipse_org_pem_start,
     };
 
@@ -3126,6 +3129,7 @@ int8_t blinker_dueros_mqtt_print(char *data)
 
         if (!check_duer_print_span())
         {
+            BLINKER_LOG_ALL(TAG, "check_duer_print_span failed");
             respDuerTime = millis();
             return 0;
         }

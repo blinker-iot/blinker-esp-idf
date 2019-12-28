@@ -1409,7 +1409,7 @@ void aligenie_parse(const char *data)
 
 void dueros_parse(const char *data)
 {
-    BLINKER_LOG_ALL(TAG, "aligenie parse get data: %s", data);
+    BLINKER_LOG_ALL(TAG, "dueros parse get data: %s", data);
 
     cJSON *root = cJSON_Parse(data);
 
