@@ -3104,7 +3104,7 @@ int8_t blinker_dueros_mqtt_print(char *data)
         }
         strcat(data, ",\"fromDevice\":\"");
         strcat(data, MQTT_ID_MQTT);
-        strcat(data, "\",\"toDevice\":\"AliGenie_r\"");
+        strcat(data, "\",\"toDevice\":\"DuerOS_r\"");
         strcat(data, ",\"deviceType\":\"vAssistant\"}");
 
         _sharerFrom = BLINKER_MQTT_FROM_AUTHER;
