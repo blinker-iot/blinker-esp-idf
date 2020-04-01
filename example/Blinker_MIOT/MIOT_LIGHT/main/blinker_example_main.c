@@ -249,12 +249,7 @@ void data_callback(const cJSON *data)
 void app_main()
 {
     BLINKER_DEBUG_ALL();
-    blinker_config_t init_conf = {
-        .type = BLINKER_WIFI,
-        .wifi = BLINKER_DEFAULT_CONFIG,
-        .miot = BLINKER_MIOT_LIGHT,
-    };
-    blinker_init(&init_conf);
+    
     blinker_button_init(&button1, button1_callback);
     blinker_attach_data(data_callback);
 
@@ -265,5 +260,5 @@ void app_main()
     blinker_miot_mode_init(miot_mode);
     blinker_miot_query_init(miot_query);
 
-    Blinker.begin(auth, ssid, pswd);
+    blinker_init();
 }

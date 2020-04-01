@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := uart_echo
+PROJECT_NAME := blinker_example
 
 include $(IDF_PATH)/make/project.mk
 

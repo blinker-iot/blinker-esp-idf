@@ -86,13 +86,9 @@ void data_callback(const cJSON *data)
 void app_main()
 {
     BLINKER_DEBUG_ALL();
-    blinker_config_t init_conf = {
-        .type = BLINKER_WIFI,
-        .wifi = BLINKER_DEFAULT_CONFIG,
-    };
-    blinker_init(&init_conf);
+    
     blinker_button_init(&button1, button1_callback);
     blinker_attach_data(data_callback);
 
-    Blinker.begin(auth, ssid, pswd);
+    blinker_init();
 }
