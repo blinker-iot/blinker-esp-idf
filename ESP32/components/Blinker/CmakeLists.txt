@@ -1,0 +1,7 @@
+idf_component_register(SRCS "Blinker.c"
+                    "BlinkerApi.c"
+                    "BlinkerDebug.c"
+                    "BlinkerMQTT.c"
+                    "BlinkerUtility.c"
+                    INCLUDE_DIRS "include")
+

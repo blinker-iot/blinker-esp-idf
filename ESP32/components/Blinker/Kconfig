@@ -1,0 +1,179 @@
+menu "Blinker"
+
+    choice BLINKER_MODE
+        prompt "Choose Blinker Mode"
+        default BLINKER_MODE_WIFI
+        help
+            Choose the mode which you want to use.
+
+            Currently we support BLINKER_WIFI and BLINKER_PRO.
+
+    config BLINKER_MODE_WIFI
+        bool "BLINKER_WIFI"
+    config BLINKER_MODE_PRO
+        bool "BLINKER_PRO"
+    endchoice
+
+    config BLINKER_SERVER_HTTPS
+        string "Blinker Server https"
+        default "https://iot.diandeng.tech"
+        help
+            Blinker Server to identify device.
+
+    config BLINKER_SERVER_HOST
+        string "Blinker Server host"
+        default "iot.diandeng.tech"
+        help
+            Blinker Server to identify device.
+
+    menu "BLINKER_WIFI"
+        depends on BLINKER_MODE_WIFI
+
+        config BLINKER_AUTHKEY
+            string "Blinker Authkey"
+            default "Your Device Secret Key"
+            help
+                Blinker Authkey for Blinker Server to identify device.
+
+        choice BLINKER_CONFIG_TYPE
+            prompt "Choose WLAN config type"
+            default BLINKER_DEFAULT_CONFIG
+            help
+                Choose the WLAN config type you want to use.
+
+                Currently we support DEFAULT_CONFIG/SMART_CONFIG/AP_CONFIG.
+
+        config BLINKER_DEFAULT_CONFIG
+            bool "DEFAULT_CONFIG"
+        config BLINKER_SMART_CONFIG
+            bool "SMART_CONFIG"
+        config BLINKER_AP_CONFIG
+            bool "AP_CONFIG"
+        endchoice
+
+        menu "DEFAULT_CONFIG"
+            depends on BLINKER_DEFAULT_CONFIG
+
+            config BLINKER_WLAN_SSID
+                string "WLAN SSID"
+                default "有没有wifi"
+                help
+                    The WLAN SSID which your device connect.
+
+            config BLINKER_WLAN_PSWD
+                string "WLAN PSWD"
+                default "i8888888"
+                help
+                    The WLAN Password which your device connect.
+
+        endmenu  # DEFAULT_CONFIG
+
+    endmenu  # BLINKER_WIFI
+
+    menu "BLINKER_PRO"
+        depends on BLINKER_MODE_PRO
+
+        config BLINKER_PRO_TYPE
+            string "Blinker Pro Type"
+            default "Pro Device Type Key"
+            help
+                Blinker Type key for Blinker Server to identify device.
+
+        config BLINKER_PRO_AUTH
+            string "Blinker Pro Auth"
+            default "Pro Device Auth Key"
+            help
+                Blinker Auth key for Blinker Server to identify device.
+
+        choice BLINKER_CONFIG_TYPE
+            prompt "Choose WLAN config type"
+            default BLINKER_SMART_CONFIG
+            help
+                Choose the WLAN config type you want to use.
+
+                Currently we support SMART_CONFIG/AP_CONFIG.
+
+        config BLINKER_SMART_CONFIG
+            bool "SMART_CONFIG"
+        config BLINKER_AP_CONFIG
+            bool "AP_CONFIG"
+        endchoice
+
+    endmenu  # BLINKER_PRO
+
+    menu "BLINKER_ALIGENIE"
+
+        choice BLINKER_ALIGENIE_MODE
+            prompt "Choos Aligenie Mode"
+            default BLINKER_ALIGENIE_NONE
+            help
+                Choose the aligenie mode which you want to use.
+
+                Currently we support BLINKER_ALIGENIE_LIGHT, BLINKER_ALIGENIE_OUTLET, BLINKER_ALIGENIE_MULTI_OUTLET, BLINKER_ALIGENIE_SENSOR.
+
+        config BLINKER_ALIGENIE_NONE
+            bool "ALIGENIE_NONE"
+        config BLINKER_ALIGENIE_LIGHT
+            bool "ALIGENIE_LIGHT"
+        config BLINKER_ALIGENIE_OUTLET
+            bool "ALIGENIE_OUTLET"
+        config BLINKER_ALIGENIE_MULTI_OUTLET
+            bool "ALIGENIE_MULTI_OUTLET"
+        config BLINKER_ALIGENIE_SENSOR
+            bool "ALIGENIE_SENSOR"
+
+        endchoice
+
+    endmenu  # BLINKER_ALIGENIE
+
+    menu "BLINKER_DUEROS"
+
+        choice BLINKER_DUEROS_MODE
+            prompt "Choos DUEROS Mode"
+            default BLINKER_DUEROS_NONE
+            help
+                Choose the DUEROS mode which you want to use.
+
+                Currently we support BLINKER_DUEROS_LIGHT, BLINKER_DUEROS_OUTLET, BLINKER_DUEROS_MULTI_OUTLET, BLINKER_DUEROS_SENSOR.
+
+        config BLINKER_DUEROS_NONE
+            bool "DUEROS_NONE"
+        config BLINKER_DUEROS_LIGHT
+            bool "DUEROS_LIGHT"
+        config BLINKER_DUEROS_OUTLET
+            bool "DUEROS_OUTLET"
+        config BLINKER_DUEROS_MULTI_OUTLET
+            bool "DUEROS_MULTI_OUTLET"
+        config BLINKER_DUEROS_SENSOR
+            bool "DUEROS_SENSOR"
+
+        endchoice
+
+    endmenu  # BLINKER_DUEROS
+
+    menu "BLINKER_MIOT"
+
+        choice BLINKER_MIOT_MODE
+            prompt "Choos MIOT Mode"
+            default BLINKER_MIOT_NONE
+            help
+                Choose the MIOT mode which you want to use.
+
+                Currently we support BLINKER_MIOT_LIGHT, BLINKER_MIOT_OUTLET, BLINKER_MIOT_MULTI_OUTLET, BLINKER_MIOT_SENSOR.
+
+        config BLINKER_MIOT_NONE
+            bool "MIOT_NONE"
+        config BLINKER_MIOT_LIGHT
+            bool "MIOT_LIGHT"
+        config BLINKER_MIOT_OUTLET
+            bool "MIOT_OUTLET"
+        config BLINKER_MIOT_MULTI_OUTLET
+            bool "MIOT_MULTI_OUTLET"
+        config BLINKER_MIOT_SENSOR
+            bool "MIOT_SENSOR"
+
+        endchoice
+
+    endmenu  # BLINKER_MIOT
+
+endmenu
