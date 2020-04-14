@@ -3,5 +3,15 @@ idf_component_register(SRCS "Blinker.c"
                     "BlinkerDebug.c"
                     "BlinkerMQTT.c"
                     "BlinkerUtility.c"
-                    INCLUDE_DIRS "include")
+                    "base64.c"
+                    "sha1.c"
+                    "websocket_server.c"
+                    "websocket.c"
+                    INCLUDE_DIRS "include"
+                    REQUIRES wpa_supplicant
+                            nvs_flash
+                            json
+                            mqtt
+                            app_update
+                            mdns)
 

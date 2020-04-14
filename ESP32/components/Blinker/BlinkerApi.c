@@ -2,7 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
-#include "rom/ets_sys.h"
+#include "esp32/rom/ets_sys.h"
 
 #include "BlinkerApi.h"
 #include "BlinkerMQTT.h"
@@ -103,7 +103,7 @@ void default_init()
                     CONFIG_BLINKER_WLAN_PSWD);
     wifi_init_sta(CONFIG_BLINKER_WLAN_SSID, 
                 CONFIG_BLINKER_WLAN_PSWD);
-    // websocket_init();
+    websocket_init();
     device_register();
     blinker_mqtt_init();
     // blinker_fresh_sharers();
@@ -117,7 +117,7 @@ void smart_init(void)
 {
     // BLINKER_LOG_ALL(TAG, "KEY: %s", CONFIG_BLINKER_AUTHKEY);
     wifi_init_smart();
-    // websocket_init();
+    websocket_init();
     device_register();
     blinker_mqtt_init();
     // blinker_fresh_sharers();
@@ -1160,7 +1160,7 @@ void parse(const char *data)
 
     // BLINKER_LOG_ALL(TAG, "parsed data cJSON_Delete");
 
-    // flush();
+    flush();
 }
 
 xTaskHandle pvCreatedTask_ToggleLed4;
