@@ -13,5 +13,6 @@ idf_component_register(SRCS "Blinker.c"
                             json
                             mqtt
                             app_update
-                            mdns)
-
+                            mdns
+                            spiffs
+                            button)

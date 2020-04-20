@@ -86,9 +86,49 @@ blinker_callback_with_int32_arg_t           _MIOTSetColorTemperature = NULL;
 blinker_callback_with_int32_uint8_arg_t     _MIOTQueryFunc_m = NULL;
 blinker_callback_with_int32_arg_t           _MIOTQueryFunc = NULL;
 
+#include "iot_button.h"
+
+void button_tap_cb(void* arg)
+{
+    char* pstr = (char*) arg;
+    BLINKER_LOG(TAG, "tap cb (%s), heap: %d\n", pstr, esp_get_free_heap_size());
+}
+
+void button_press_2s_cb(void* arg)
+{
+    BLINKER_LOG(TAG, "press 2s, heap: %d\n", esp_get_free_heap_size());
+
+    blinker_reset();
+}
+
+void button_press_5s_cb(void* arg)
+{
+    BLINKER_LOG(TAG, "press 5s, heap: %d\n", esp_get_free_heap_size());
+}
+
+void button_test()
+{
+    printf("before btn init, heap: %d\n", esp_get_free_heap_size());
+    button_handle_t btn_handle = iot_button_create(4, 1);
+    iot_button_set_evt_cb(btn_handle, BUTTON_CB_PUSH, button_tap_cb, "PUSH");
+    iot_button_set_evt_cb(btn_handle, BUTTON_CB_RELEASE, button_tap_cb, "RELEASE");
+    iot_button_set_evt_cb(btn_handle, BUTTON_CB_TAP, button_tap_cb, "TAP");
+    // iot_button_set_serial_cb(btn_handle, 2, 1000/portTICK_RATE_MS, button_tap_cb, "SERIAL");
+
+    iot_button_add_custom_cb(btn_handle, 2, button_press_2s_cb, NULL);
+    iot_button_add_custom_cb(btn_handle, 5, button_press_5s_cb, NULL);
+    printf("after btn init, heap: %d\n", esp_get_free_heap_size());
+
+    // vTaskDelay(100000 / portTICK_PERIOD_MS);
+    // printf("free btn: heap:%d\n", esp_get_free_heap_size());
+    // iot_button_delete(btn_handle);
+    // printf("after free btn: heap:%d\n", esp_get_free_heap_size());
+}
+
 void parse(const char *data);
 void run(void);
 
+// #if !defined (CONFIG_BLINKER_MODE_PRO)
 #if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
 // void default_init(const char * key, const char * ssid, const char * pswd)
 void default_init()
@@ -140,6 +180,7 @@ void ap_init(void)
 }
 
 #endif
+// #endif
 
 void blinker_init(void)
 {
@@ -169,7 +210,7 @@ void blinker_init(void)
 
     printf("\n========================================================\n");
 
-    // button_test();
+    button_test();
 
     // blinker_spiffs_init();
     // blinker_spiffs_auth_check();
@@ -214,13 +255,15 @@ void blinker_init(void)
         blinker_set_type_auth(CONFIG_BLINKER_PRO_TYPE, CONFIG_BLINKER_PRO_AUTH, parse);
     #endif
 
-    #if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
-        default_init();
-    #elif defined (CONFIG_BLINKER_SMART_CONFIG)
-        smart_init();
-    #elif defined (CONFIG_BLINKER_AP_CONFIG)
-        ap_init();
-    #endif
+    // #if !defined (CONFIG_BLINKER_MODE_PRO)
+        #if defined (CONFIG_BLINKER_DEFAULT_CONFIG)
+            default_init();
+        #elif defined (CONFIG_BLINKER_SMART_CONFIG)
+            smart_init();
+        #elif defined (CONFIG_BLINKER_AP_CONFIG)
+            ap_init();
+        #endif
+    // #endif
 }
 
 
@@ -1183,4 +1226,200 @@ void run(void)
                 NULL,
                 4,
                 pvCreatedTask_ToggleLed4);
+}
+
+uint32_t    _smsTime = 0;
+uint32_t    _pushTime = 0;
+uint32_t    _wechatTime = 0;
+uint32_t    _weatherTime = 0;
+uint32_t    _aqiTime = 0;
+
+uint8_t check_sms(void)
+{
+    if ((millis() - _smsTime) >= BLINKER_SMS_MSG_LIMIT || 
+        _smsTime == 0) return 1;
+    else return 0;
+}
+
+uint8_t check_push(void)
+{
+    if ((millis() - _pushTime) >= BLINKER_PUSH_MSG_LIMIT || 
+        _pushTime == 0) return 1;
+    else return 0;
+}
+
+uint8_t check_wechat(void)
+{
+    if ((millis() - _wechatTime) >= BLINKER_WECHAT_MSG_LIMIT || 
+        _wechatTime == 0) return 1;
+    else return 0;
+}
+
+uint8_t check_weather(void)
+{
+    if ((millis() - _weatherTime) >= BLINKER_WEATHER_MSG_LIMIT || 
+        _weatherTime == 0) return 1;
+    else return 0;
+}
+
+uint8_t check_aqi(void)
+{
+    if ((millis() - _aqiTime) >= BLINKER_WEATHER_MSG_LIMIT || 
+        _aqiTime == 0) return 1;
+    else return 0;
+}
+
+void blinker_sms(const blinker_sms_config_t *config)
+{
+    if (!(config->message) || strlen(config->message) >= 20) return;
+
+    if (!check_sms()) return;
+
+    _smsTime = millis();
+
+    char data[128];
+
+    strcpy(data, "{\"deviceName\":\"");
+    strcat(data, mqtt_device_name());
+    if (config->cell)
+    {
+        strcat(data, "\",\"cel\":\"");
+        strcat(data, config->cell);
+    }
+    strcat(data, "\",\"key\":\"");
+    strcat(data, mqtt_auth_key());
+    strcat(data, "\",\"msg\":\"");
+    strcat(data, config->message);
+    strcat(data, "\"}");
+
+    blinker_https_post(BLINKER_SERVER_HOST, "/api/v1/user/device/sms", data);
+
+    blinker_server(BLINKER_CMD_SMS_NUMBER);
+}
+
+void blinker_push(const char *msg)
+{
+    if (strlen(msg) > 64) return;
+
+    if (!check_push()) return;
+
+    _pushTime = millis();
+
+    char data[128];
+
+    strcpy(data, "{\"deviceName\":\"");
+    strcat(data, mqtt_device_name());
+    strcat(data, "\",\"key\":\"");
+    strcat(data, mqtt_auth_key());
+    strcat(data, "\",\"msg\":\"");
+    strcat(data, msg);
+    strcat(data, "\"}");
+
+    blinker_https_post(BLINKER_SERVER_HOST, "/api/v1/user/device/push", data);
+
+    blinker_server(BLINKER_CMD_PUSH_NUMBER);
+}
+
+void blinker_wechat(const blinker_wechat_config_t *config)
+{
+    if (!(config->message) || strlen(config->message) >= 64) return;
+
+    if (!check_wechat()) return;
+
+    _wechatTime = millis();
+
+    char data[128];
+
+    strcpy(data, "{\"deviceName\":\"");
+    strcat(data, mqtt_device_name());
+    strcat(data, "\",\"key\":\"");
+    strcat(data, mqtt_auth_key());
+    if (config->title)
+    {
+        strcat(data, "\",\"title\":\"");
+        strcat(data, config->title);
+    }
+    if (config->state)
+    {
+        strcat(data, "\",\"state\":\"");
+        strcat(data, config->state);
+    }
+    strcat(data, "\",\"msg\":\"");
+    strcat(data, config->message);
+    strcat(data, "\"}");
+
+    blinker_https_post(BLINKER_SERVER_HOST, "/api/v1/user/device/wxMsg/", data);
+
+    blinker_server(BLINKER_CMD_WECHAT_NUMBER);
+}
+
+void blinker_weather(const char *city)
+{
+    if (strlen(city) > 40) return;
+
+    if (!check_weather()) return;
+
+    _weatherTime = millis();
+
+    char url[128];
+
+    strcpy(url, "/api/v1/weather/now?");
+    strcat(url, "deviceName=");
+    strcat(url, mqtt_device_name());
+    strcat(url, "&key=");
+    strcat(url, mqtt_auth_key());    
+    strcat(url, "&location=");
+    strcat(url, city);
+
+    blinker_https_get(BLINKER_SERVER_HOST, url);
+
+    blinker_server(BLINKER_CMD_WEATHER_NUMBER);
+}
+
+void blinker_attach_weather_data(blinker_callback_with_json_arg_t func)
+{
+    weather_data(func);
+}
+
+void blinker_aqi(const char *city)
+{
+    if (strlen(city) > 40) return;
+
+    if (!check_aqi()) return;
+
+    _aqiTime = millis();
+
+    char url[128];
+
+    strcpy(url, "/api/v1/weather/aqi?");
+    strcat(url, "deviceName=");
+    strcat(url, mqtt_device_name());
+    strcat(url, "&key=");
+    strcat(url, mqtt_auth_key());
+    strcat(url, "&location=");
+    strcat(url, city);
+
+    blinker_https_get(BLINKER_SERVER_HOST, url);
+
+    blinker_server(BLINKER_CMD_AQI_NUMBER);
+}
+
+void blinker_attach_aqi_data(blinker_callback_with_json_arg_t func)
+{
+    aqi_data(func);
+}
+
+void blinker_fresh_sharers(void)
+{
+    char url[128];
+
+    strcpy(url, "/api/v1/user/device/share/device?");
+    strcat(url, "deviceName=");
+    strcat(url, mqtt_device_name());
+    strcat(url, "&key=");
+    strcat(url, mqtt_auth_key());
+
+    blinker_https_get(BLINKER_SERVER_HOST, url);
+
+    blinker_server(BLINKER_CMD_FRESH_SHARERS_NUMBER);
 }

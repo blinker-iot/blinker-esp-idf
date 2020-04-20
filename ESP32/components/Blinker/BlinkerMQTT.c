@@ -39,6 +39,10 @@
 
 #include "BlinkerMQTT.h"
 
+#include <sys/stat.h>
+#include "esp_spiffs.h"
+#include "lwip/apps/sntp.h"
+
 static const char *TAG = "BlinkerMQTT";
 
 static QueueHandle_t client_queue;
@@ -46,7 +50,8 @@ const static int client_queue_size = 10;
 
 static EventGroupHandle_t wifi_event_group;
 static EventGroupHandle_t smart_event_group;
-static EventGroupHandle_t http_event_group;
+// static EventGroupHandle_t http_event_group;
+// static EventGroupHandle_t auth_event_group;
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
@@ -60,6 +65,7 @@ char*       MQTT_KEY_MQTT;
 char*       MQTT_PRODUCTINFO_MQTT;
 char*       UUID_MQTT;
 char*       DEVICE_NAME_MQTT;
+// char        DEVICE_NAME_MQTT[36];
 char*       BLINKER_PUB_TOPIC_MQTT;
 char*       BLINKER_SUB_TOPIC_MQTT;
 uint16_t    MQTT_PORT_MQTT;
@@ -117,6 +123,10 @@ uint8_t isHello = 0;
 #define WEB_PORT "443"
 #define WEB_URL "https://www.howsmyssl.com/a/check"
 
+uint8_t http_is_start = 0;
+uint8_t is_register = 0;
+uint8_t is_device_auth = 0;
+
 // static const char *TAG = "example";
 
 // static const char *REQUEST = "GET " WEB_URL " HTTP/1.0\r\n"
@@ -129,6 +139,8 @@ uint8_t isHello = 0;
 static int AUTH_BIT = BIT0;
 // static const int REGISTER_BIT = BIT0;
 int8_t spiffs_start = 0;
+
+uint8_t is_smart_task = 0;
 
 blinker_callback_with_string_arg_t  data_parse_func = NULL;
 blinker_callback_with_string_arg_t  aligenie_parse_func = NULL;
@@ -169,9 +181,216 @@ void mbedtls_https_client(void);
 esp_mqtt_client_handle_t blinker_mqtt_client;
 
 
+uint8_t blinker_auth_check(void)
+{
+    static const char *TAGs = "blinker_auth_check";
+
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = true
+    };
+
+    // Use settings defined above to initialize and mount SPIFFS filesystem.
+    // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            BLINKER_LOG(TAGs, "Failed to mount or format filesystem");
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            BLINKER_LOG(TAGs, "Failed to find SPIFFS partition");
+        } else {
+            BLINKER_LOG(TAGs, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+        }
+        return 0;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(NULL, &total, &used);
+    if (ret != ESP_OK) {
+        BLINKER_LOG(TAGs, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
+    } else {
+        BLINKER_LOG(TAGs, "Partition size: total: %d, used: %d", total, used);
+    }
+
+    FILE* f;
+
+    struct stat st;
+
+    BLINKER_LOG(TAGs, "check auth");
+
+    if (stat("/spiffs/auth.txt", &st) != 0)
+    {
+        BLINKER_LOG(TAGs, "not auth");
+
+        // f = fopen("/spiffs/auth.txt", "w");
+        // if (f == NULL) {
+        //     ESP_LOGE(TAG, "Failed to open file for writing");
+        //     return 0;
+        // }
+        // fclose(f);
+        esp_vfs_spiffs_unregister(NULL);
+        return 0;
+    }
+    else
+    {
+        BLINKER_LOG(TAGs, "authed, check auth user");
+
+        f = fopen("/spiffs/auth.txt", "r");
+        if (f == NULL) {
+            BLINKER_LOG(TAGs, "Failed to open file for reading");
+            esp_vfs_spiffs_unregister(NULL);
+            return 0;
+        }
+
+        char line[64];
+        fgets(line, sizeof(line), f);
+        fclose(f);
+        // strip newline
+        char* pos = strchr(line, '\n');
+        if (pos) {
+            *pos = '\0';
+        }
+        BLINKER_LOG(TAGs, "Read from file: '%s'", line);
+
+        esp_vfs_spiffs_unregister(NULL);
+        return 1;
+    }
+}
+
+void blinker_auth_task(void* pv)
+{
+    BLINKER_LOG(TAG, "blinker_auth_get");
+
+    blinker_ws_print("{\"message\":\"success\"}\n");
+
+    device_get_auth();
+    // xEventGroupSetBits(register_event_group, REGISTER_BIT);
+
+    vTaskDelete(NULL);
+}
+
+void blinker_auth_get(void)
+{
+    xTaskCreate(blinker_auth_task,
+                "blinker_auth_task",
+                4096,
+                NULL,
+                6,
+                NULL);
+}
+
+void blinker_auth_save(void)
+{
+    static const char *TAGs = "blinker_auth_check";
+
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = true
+    };
+
+    // Use settings defined above to initialize and mount SPIFFS filesystem.
+    // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            BLINKER_LOG(TAGs, "Failed to mount or format filesystem");
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            BLINKER_LOG(TAGs, "Failed to find SPIFFS partition");
+        } else {
+            BLINKER_LOG(TAGs, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+        }
+        return;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(NULL, &total, &used);
+    if (ret != ESP_OK) {
+        BLINKER_LOG(TAGs, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
+    } else {
+        BLINKER_LOG(TAGs, "Partition size: total: %d, used: %d", total, used);
+    }
+
+    FILE* f;
+
+    struct stat st;
+
+    if (stat("/spiffs/auth.txt", &st) == 0) {
+        return;
+    }
+
+    BLINKER_LOG(TAGs, "blinker auth need save uuid: %s", UUID_MQTT);
+
+   
+    BLINKER_LOG(TAGs, "store auth uuid");
+
+    unlink("/spiffs/auth.txt");
+
+    f = fopen("/spiffs/auth.txt", "w");
+    if (f == NULL) {
+        BLINKER_LOG(TAGs, "Failed to open file for writing");
+        return;
+    }
+    fprintf(f, UUID_MQTT);
+    fclose(f);
+    esp_vfs_spiffs_unregister(NULL);
+}
+
+void blinker_spiffs_delete(void)
+{
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = true
+    };
+
+    // Use settings defined above to initialize and mount SPIFFS filesystem.
+    // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            BLINKER_LOG(TAG, "Failed to mount or format filesystem");
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            BLINKER_LOG(TAG, "Failed to find SPIFFS partition");
+        } else {
+            BLINKER_LOG(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+        }
+        // return;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(NULL, &total, &used);
+    if (ret != ESP_OK) {
+        BLINKER_LOG(TAG, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
+    } else {
+        BLINKER_LOG(TAG, "Partition size: total: %d, used: %d", total, used);
+    }
+
+    // FILE* f;
+
+    struct stat st;
+
+    if (stat("/spiffs/auth.txt", &st) == 0) {
+        // Delete it if it exists
+        unlink("/spiffs/auth.txt");
+    }
+    
+    esp_vfs_spiffs_unregister(NULL);
+}
+
+uint8_t client_num = 0;
+
 void websocket_callback(uint8_t num,WEBSOCKET_TYPE_t type,char* msg,uint64_t len) {
     const static char* TAG = "websocket_callback";
     // int value;
+    client_num = num;
 
     switch(type) {
         case WEBSOCKET_CONNECT:
@@ -192,7 +411,9 @@ void websocket_callback(uint8_t num,WEBSOCKET_TYPE_t type,char* msg,uint64_t len
         case WEBSOCKET_TEXT:
             ESP_LOGI(TAG,"client %i sent text, len: %u, msg: %s", num, (uint32_t)len, (char *)msg);
 
-            blinker_ws_print("{\"state\":\"connected\"}\n");
+            // blinker_ws_print("{\"state\":\"connected\"}\n");
+
+            ESP_LOGI(TAG, "check json");
 
             if (isFresh_MQTT) free(msgBuf_MQTT);
 
@@ -211,17 +432,24 @@ void websocket_callback(uint8_t num,WEBSOCKET_TYPE_t type,char* msg,uint64_t len
                 {
                     cJSON *_type = cJSON_GetObjectItemCaseSensitive(root, "register");
 
+                    // ESP_LOGI(TAG, "_type: %s", _type->valuestring);
+                    // ESP_LOGI(TAG, "strcmp: %d", strcmp(_type->valuestring, blinker_type) == 0);
+
                     if (cJSON_IsString(_type) && (_type->valuestring != NULL))
                     {
                         #if defined (CONFIG_BLINKER_MODE_PRO)
                             if (strcmp(_type->valuestring, blinker_type) == 0)
                             {
-                                BLINKER_LOG_ALL(TAG, "check register success.");
+                                ESP_LOGI(TAG, "check register success.");
 
                                 // cJSON_Delete(_type);
                                 cJSON_Delete(root);
 
-                                blinker_auth_get();
+                                if (is_register != 1) {
+                                    blinker_auth_get();
+                                }
+
+                                is_register = 1;
 
                                 return;
 
@@ -233,14 +461,14 @@ void websocket_callback(uint8_t num,WEBSOCKET_TYPE_t type,char* msg,uint64_t len
                                 cJSON_Delete(root);
                                 BLINKER_LOG_ALL(TAG, "check register failed.");
                             }
-                        #else
-                            // cJSON_Delete(_type);
-                            cJSON_Delete(root);
+                        // #else
+                        //     // cJSON_Delete(_type);
+                        //     cJSON_Delete(root);
                         #endif
                     }
                     else
                     {
-                        cJSON_Delete(root);
+                        BLINKER_LOG_ALL(TAG, "ws data_parse_func.");
 
                         kaTime = millis();
                         isAvail_MQTT = 1;
@@ -250,6 +478,8 @@ void websocket_callback(uint8_t num,WEBSOCKET_TYPE_t type,char* msg,uint64_t len
                         dataFrom_MQTT = BLINKER_MSG_FROM_WS;
                         
                         if (data_parse_func) data_parse_func((char *)msg);
+
+                        cJSON_Delete(root);
 
                         // dataFrom_MQTT = BLINKER_MSG_FROM_MQTT;
                     }
@@ -498,14 +728,17 @@ static void server_handle_task(void* pvParameters) {
 
 int8_t blinker_ws_print(char *data)
 {
-    BLINKER_LOG_ALL(TAG, "ws response: %s ", data);
+    uint16_t _len = strlen(data);
+
+    bool _success = (ws_server_send_text_client(client_num, data, _len) > 0) ? 1 : 0;
+
+    BLINKER_LOG_ALL(TAG, "ws response: %s, %d", data, _success);
 
     BLINKER_LOG_FreeHeap(TAG);
 
     dataFrom_MQTT = BLINKER_MSG_FROM_MQTT;
 
-    uint16_t _len = strlen(data);
-    return (ws_server_send_text_all(data, _len) > 0) ? 1 : 0;
+    return _success;
 }
 
 void websocket_init(void)
@@ -539,6 +772,7 @@ void initialise_mdns(void)
 
     //initialize service
     ESP_ERROR_CHECK( mdns_service_add(DEVICE_NAME_MQTT, "_blinker", "_tcp", 81, serviceTxtData, 1) );
+    
     //add another TXT item
     // ESP_ERROR_CHECK( mdns_service_txt_item_set("_blinker", "_tcp", "deviceName", DEVICE_NAME_MQTT) );
     //change TXT item value
@@ -552,6 +786,16 @@ void initialise_mdns(void)
     // xTaskCreate(&server_handle_task,"server_handle_task",2048,NULL,6,NULL);
     // xTaskCreate(&blinker_websocket_server,"blinker_websocket_server",6000,NULL,2,NULL);
     // vTaskDelete(wstask);
+}
+
+void weather_data(blinker_callback_with_json_arg_t func)
+{
+    _weather_func = func;
+}
+
+void aqi_data(blinker_callback_with_json_arg_t func)
+{
+    _aqi_func = func;
 }
 
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
@@ -791,6 +1035,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         if (sconf_step == sconf_begin)
         {
             xTaskCreate(smartconfig_example_task, "smartconfig_example_task", 4096, NULL, 3, NULL);
+            is_smart_task = 1;
         }
         else
         {
@@ -805,6 +1050,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
             xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
             initialise_wifi();
             xTaskCreate(smartconfig_example_task, "smartconfig_example_task", 4096, NULL, 3, NULL);
+            is_smart_task = 1;
         }
         else
         {
@@ -894,6 +1140,9 @@ static void smartconfig_example_task(void * parm)
         uxBits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT | ESPTOUCH_DONE_BIT, true, false, portMAX_DELAY); 
         if(uxBits & CONNECTED_BIT) {
             ESP_LOGI(TAG, "WiFi Connected to ap");
+            vTaskDelay(1000/portTICK_RATE_MS);
+            esp_smartconfig_stop();
+            vTaskDelete(NULL);
         }
         if(uxBits & ESPTOUCH_DONE_BIT) {
             ESP_LOGI(TAG, "smartconfig over");
@@ -908,6 +1157,21 @@ void blinker_set_auth(const char * _key, blinker_callback_with_string_arg_t _fun
     uint8_t _len = strlen(_key) + 1;
     blinker_authkey = (char *)malloc(_len*sizeof(char));
     strcpy(blinker_authkey, _key);
+
+    data_parse_func = _func;
+}
+
+void blinker_set_type_auth(const char * _type, const char * _key, blinker_callback_with_string_arg_t _func)
+{
+    uint8_t _len = strlen(_type) + 1;
+
+    blinker_type = (char *)malloc(_len*sizeof(char));
+    strcpy(blinker_type, _type);
+
+    _len = strlen(_key) + 1;
+
+    blinker_auth = (char *)malloc(_len*sizeof(char));
+    strcpy(blinker_auth, _key);
 
     data_parse_func = _func;
 }
@@ -937,6 +1201,7 @@ void wifi_init_smart(void)
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
+    ESP_ERROR_CHECK( esp_event_handler_register(SC_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL) );
 
     wifi_config_t wifi_config;
     esp_wifi_get_config(ESP_IF_WIFI_STA, &wifi_config);
@@ -958,6 +1223,24 @@ void wifi_init_smart(void)
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
     vEventGroupDelete(wifi_event_group);
     vEventGroupDelete(smart_event_group);
+
+    #if defined (CONFIG_BLINKER_MODE_PRO)
+        BLINKER_LOG_ALL(TAG, "mdns_init. %s", macDeviceName());
+
+        ESP_ERROR_CHECK( mdns_init() );
+        // set mDNS hostname (required if you want to advertise services)
+        ESP_ERROR_CHECK( mdns_hostname_set(macDeviceName()) );
+        // set default mDNS instance name
+        ESP_ERROR_CHECK( mdns_instance_name_set(macDeviceName()) );
+
+        // structure with TXT records
+        mdns_txt_item_t serviceTxtData[1] = {
+            {"deviceName", macDeviceName()}
+        };
+
+        //initialize service
+        ESP_ERROR_CHECK( mdns_service_add(macDeviceName(), "_blinker", "_tcp", 81, serviceTxtData, 1) );
+    #endif
 
     BLINKER_LOG_FreeHeap(TAG);
 }
@@ -1098,27 +1381,67 @@ void blinker_https_post(const char * _host, const char * _url, const char * _msg
     // BLINKER_LOG_FreeHeap(TAG);
 }
 
+void device_get_auth(void)
+{
+    // blinker_ws_print("{\"message\",\"success\"}");
+
+    BLINKER_LOG(TAG, "device_get_auth");
+
+    char test_url[100];
+
+    strcpy(test_url, "/api/v1/user/device/auth/get?deviceType=");
+    strcat(test_url, blinker_type);
+    strcat(test_url, "&typeKey=");
+    strcat(test_url, blinker_auth);
+    strcat(test_url, "&deviceName=");
+    strcat(test_url, macDeviceName());
+    if (_aliType) strcat(test_url, _aliType);
+    if (_duerType) strcat(test_url, _duerType);
+    if (_miType) strcat(test_url, _miType);
+
+    blinker_https_get(BLINKER_SERVER_HOST, test_url);
+
+    blinker_server(BLINKER_CMD_DEVICE_AUTH_NUMBER);
+}
+
 void device_register(void)
 {
     BLINKER_LOG(TAG, "device_register");
 
-    http_event_group = xEventGroupCreate();
+    // http_event_group = xEventGroupCreate();
 
     #if defined (CONFIG_BLINKER_MODE_PRO)
+
+        // auth_event_group = xEventGroupCreate();
+
         if (blinker_auth_check())
         {
             device_get_auth();
 
             isHello = 1;
         }
+        
+        // if (is_smart_task)
+        // {
+        //     esp_smartconfig_stop();
+        //     vTaskDelete(smartconfig_example_task);
+        // }
 
+        // return;
+        // BLINKER_LOG(TAG, "AUTH_BIT == BIT1: %d", AUTH_BIT == BIT1);
+        BLINKER_LOG_FreeHeap(TAG);
+
+        // xEventGroupWaitBits(auth_event_group, AUTH_BIT, false, true, portMAX_DELAY);
+        // vEventGroupDelete(auth_event_group);
+        // BLINKER_LOG(TAG, "auth_event_group get bit 1");
         for (;;)
         {
-            vTaskDelay(10 / portTICK_RATE_MS);
-            if (AUTH_BIT == BIT1)
-            break;
+            vTaskDelay(100 / portTICK_RATE_MS);
+            // taskYIELD();
+            if (AUTH_BIT == BIT1) break;
         }
 
+        BLINKER_LOG(TAG, "auth_event_group get bit 1");
 
         // xEventGroupWaitBits(http_event_group, AUTH_BIT, false, true, portMAX_DELAY);
     #endif
@@ -1147,6 +1470,8 @@ void device_register(void)
     // #endif
     blinker_https_get(BLINKER_SERVER_HOST, test_url);
 
+    is_device_auth = 0;
+
     blinker_server(BLINKER_CMD_DEVICE_REGISTER_NUMBER);
 }
 
@@ -1156,8 +1481,46 @@ void blinker_https_task(void* pv)
     mbedtls_https_client();
 }
 
+void get_time(void)
+{
+    struct timeval now;
+    int sntp_retry_cnt = 0;
+    int sntp_retry_time = 0;
+
+    sntp_setoperatingmode(0);
+    sntp_setservername(0, "ntp1.aliyun.com");
+    sntp_setservername(1, "120.25.108.11");
+    sntp_setservername(2, "time.pool.aliyun.com");
+    sntp_init();
+
+    while (1) {
+        for (int32_t i = 0; (i < (SNTP_RECV_TIMEOUT / 100)) && now.tv_sec < 1525952900; i++) {
+            vTaskDelay(100 / portTICK_RATE_MS);
+            gettimeofday(&now, NULL);
+        }
+
+        if (now.tv_sec < 1525952900) {
+            sntp_retry_time = SNTP_RECV_TIMEOUT << sntp_retry_cnt;
+
+            if (SNTP_RECV_TIMEOUT << (sntp_retry_cnt + 1) < SNTP_RETRY_TIMEOUT_MAX) {
+                sntp_retry_cnt ++;
+            }
+
+            BLINKER_LOG_ALL(TAG, "SNTP get time failed, retry after %d ms\n", sntp_retry_time);
+            vTaskDelay(sntp_retry_time / portTICK_RATE_MS);
+        } else {
+            BLINKER_LOG_ALL(TAG, "SNTP get time success\n");
+            break;
+        }
+    }
+}
+
 void blinker_server(uint8_t type)
 {
+    if (http_is_start == 1) return;
+
+    http_is_start = 1;
+
     blinker_https_type = type;
 
     // ESP_ERROR_CHECK( nvs_flash_init() );
@@ -1190,13 +1553,16 @@ void blinker_server(uint8_t type)
         //     xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
         //     break;
         case BLINKER_CMD_DEVICE_REGISTER_NUMBER:
-            xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
-            vEventGroupDelete(http_event_group);
+            // xEventGroupWaitBits(http_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+            // vEventGroupDelete(http_event_group);
+            for (;;)
+            {
+                if (is_device_auth == 1) break;
+            }
             break;
         default:
             break;
     }
-
 }
 
 void mbedtls_https_client(void)
@@ -1316,17 +1682,17 @@ void mbedtls_https_client(void)
 
         BLINKER_LOG_ALL(TAG, "Verifying peer X.509 certificate...");
 
-        if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0)
-        {
-            /* In real life, we probably want to close connection if ret != 0 */
-            ESP_LOGW(TAG, "Failed to verify peer certificate!");
-            bzero(buf, sizeof(buf));
-            mbedtls_x509_crt_verify_info(buf, sizeof(buf), "  ! ", flags);
-            ESP_LOGW(TAG, "verification info: %s", buf);
-        }
-        else {
-            BLINKER_LOG_ALL(TAG, "Certificate verified.");
-        }
+        // if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0)
+        // {
+        //     /* In real life, we probably want to close connection if ret != 0 */
+        //     ESP_LOGW(TAG, "Failed to verify peer certificate!");
+        //     bzero(buf, sizeof(buf));
+        //     mbedtls_x509_crt_verify_info(buf, sizeof(buf), "  ! ", flags);
+        //     ESP_LOGW(TAG, "verification info: %s", buf);
+        // }
+        // else {
+        //     BLINKER_LOG_ALL(TAG, "Certificate verified.");
+        // }
 
         BLINKER_LOG_ALL(TAG, "Cipher suite is %s", mbedtls_ssl_get_ciphersuite(&ssl));
 
@@ -1449,6 +1815,8 @@ void mbedtls_https_client(void)
                     cJSON_Delete(root);
                 }
 
+                http_is_start = 0;
+
                 vTaskDelete(NULL);
                 return;
             case BLINKER_CMD_AQI_NUMBER :
@@ -1473,6 +1841,8 @@ void mbedtls_https_client(void)
 
                     cJSON_Delete(root);
                 }
+
+                http_is_start = 0;
 
                 vTaskDelete(NULL);
                 return;
@@ -1507,6 +1877,8 @@ void mbedtls_https_client(void)
 
                     cJSON_Delete(root);
                 }
+
+                http_is_start = 0;
                 
                 vTaskDelete(NULL);
                 return;
@@ -1548,7 +1920,7 @@ void mbedtls_https_client(void)
                         free(BLINKER_PUB_TOPIC_MQTT);
                         free(BLINKER_SUB_TOPIC_MQTT);
 
-                        // mdns_free();
+                        mdns_free();
 
                         isMQTTinit = 0;
                     }
@@ -1604,6 +1976,12 @@ void mbedtls_https_client(void)
                     BLINKER_LOG_ALL(TAG, "BLINKER_SUB_TOPIC_MQTT: %s", BLINKER_SUB_TOPIC_MQTT);
                     BLINKER_LOG_ALL(TAG, "BLINKER_PUB_TOPIC_MQTT: %s", BLINKER_PUB_TOPIC_MQTT);
                     BLINKER_LOG_ALL(TAG, "====================");
+
+                    #if defined (CONFIG_BLINKER_MODE_PRO)
+                        blinker_auth_save();
+
+                        vTaskDelay(1000 / portTICK_RATE_MS);
+                    #endif
                     
                     isMQTTinit = 1;
                     
@@ -1615,7 +1993,13 @@ void mbedtls_https_client(void)
 
                     vTaskDelay(1000 / portTICK_RATE_MS);
 
-                    xEventGroupSetBits(http_event_group, isMQTTinit);
+                    http_is_start = 0;
+
+                    is_device_auth = 1;
+                    
+                    vTaskDelete(NULL);
+
+                    // xEventGroupSetBits(http_event_group, isMQTTinit);
 
                     // wolfSSL_shutdown(ssl);
 
@@ -1628,8 +2012,6 @@ void mbedtls_https_client(void)
                     // wolfSSL_Cleanup();
 
                     // return;
-                    
-                    vTaskDelete(NULL);
                     return;
                 }
                 break;
@@ -1651,17 +2033,31 @@ void mbedtls_https_client(void)
 
                     if (cJSON_IsString(_auth) && (_auth->valuestring != NULL))
                     {
-                        // mdns_free(); 
+                        mdns_free(); 
+
                         uint8_t _len = strlen(_auth->valuestring) + 1;
                         blinker_authkey = (char *)malloc(_len*sizeof(char));
                         strcpy(blinker_authkey, _auth->valuestring);
 
+                        BLINKER_LOG_ALL(TAG, "AUTH_NUMBER blinker_authkey: %s", blinker_authkey);
+
                         AUTH_BIT = BIT1;
-                        // xEventGroupSetBits(http_event_group, AUTH_BIT);
+
+                        BLINKER_LOG(TAG, "auth_event_group set bit 1");
+
+                        // xEventGroupSetBits(http_event_group, BIT1);
                         
                         cJSON_Delete(root);
 
                         BLINKER_LOG_FreeHeap(TAG);
+
+                        http_is_start = 0;
+
+                        vTaskDelete(NULL);
+
+                        // BLINKER_LOG(TAG, "auth_event_group set bit 1");
+
+                        // xEventGroupSetBits(auth_event_group, AUTH_BIT);
 
                         // wolfSSL_shutdown(ssl);
 
@@ -1674,8 +2070,6 @@ void mbedtls_https_client(void)
                         // wolfSSL_Cleanup();
 
                         // return;
-                        
-                        vTaskDelete(NULL);
                         return;
                     }
                 // }
@@ -1702,6 +2096,8 @@ void mbedtls_https_client(void)
 
                     cJSON_Delete(root);
                 }
+
+                http_is_start = 0;
                 
                 vTaskDelete(NULL);
                 return;
@@ -2189,3 +2585,12 @@ int8_t blinker_print(char *data, uint8_t need_check)
     }    
 }
 
+void blinker_reset(void)
+{
+    BLINKER_LOG(TAG, "Blinker Reset!!!");
+    blinker_spiffs_delete();
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    esp_wifi_restore();
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    esp_restart();
+}
