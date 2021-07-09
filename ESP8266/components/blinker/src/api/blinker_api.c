@@ -1198,6 +1198,12 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
                     }
                     break;
 
+                case BLINKER_DATA_FROM_DUEROS:
+                    if (va_duer != NULL) {
+                        blinker_va_parse(main_data, va_duer);
+                    }
+                    break;
+
                 case BLINKER_DATA_FROM_MIOT:
                     if (va_miot != NULL) {
                         blinker_va_parse(main_data, va_miot);
@@ -1269,8 +1275,14 @@ static esp_err_t blinker_device_mqtt_init(blinker_mqtt_config_t *config)
     err = blinker_mqtt_connect();
 
     char *sub_topic = NULL;
-    asprintf(&sub_topic, "/device/%s/r",
-            blinker_mqtt_devicename());
+    if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
+        asprintf(&sub_topic, "/%s/%s/r",
+                blinker_mqtt_product_key(),
+                blinker_mqtt_devicename());
+    } else if (blinker_mqtt_broker() == BLINKER_BROKER_BLINKER) {
+        asprintf(&sub_topic, "/device/%s/r",
+                blinker_mqtt_devicename());
+    }
 
     if (sub_topic != NULL) {
         blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
@@ -1317,9 +1329,8 @@ esp_err_t blinker_init(void)
                 NULL,
                 3,
                 NULL);
-    
-    err = blinker_device_mqtt_init(&mqtt_config);
 
+    
 #ifndef CONFIG_BLINKER_ALIGENIE_NONE
     blinker_aligenie_init();
 #endif
@@ -1329,6 +1340,8 @@ esp_err_t blinker_init(void)
 #ifndef CONFIG_BLINKER_MIOT_NONE
     blinker_miot_init();
 #endif
+    
+    err = blinker_device_mqtt_init(&mqtt_config);
 
     TimerHandle_t b_http_heart_beat_timer = xTimerCreate("http_heart_beat",
                                                         pdMS_TO_TICKS(CONFIG_BLINKER_HTTP_HEART_BEAT_TIME_INTERVAL*BLINKER_MIN_TO_MS),

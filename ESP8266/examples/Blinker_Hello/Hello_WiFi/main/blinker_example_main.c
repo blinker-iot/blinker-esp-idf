@@ -38,7 +38,7 @@ static const char *TAG = "blinker";
 #define BUTTON_1    "btn-abc"
 #define NUM_1       "num-abc"
 
-static int counter = 0;
+static int count = 0;
 
 void button1_callback(const blinker_widget_param_val_t *val)
 {
