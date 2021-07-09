@@ -31,50 +31,37 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Blinker.h"
+#include "blinker_api.h"
 
 static const char *TAG = "blinker";
 
-BlinkerButton button1 = {.name = "btn-abc"};
-BlinkerNumber number1 = {.name = "num-abc"};
+#define BUTTON_1    "btn-abc"
+#define NUM_1       "num-abc"
 
-int counter = 0;
+static int counter = 0;
 
-void button1_callback(const char *data)
+void button1_callback(const blinker_widget_param_val_t *val)
 {
-    BLINKER_LOG(TAG, "get button data: %s", data);
+    ESP_LOGI(TAG, "button state: %s", val->s);
+    count++;
 
-    blinker_button_config_t config = {
-        .icon = "fas fa-alicorn",
-        .color = "0xFF",
-        .text1 = "test",
-    };
+    cJSON *param = cJSON_CreateObject();
+    blinker_widget_switch(param, val->s);
+    blinker_widget_print(BUTTON_1, param);
+    cJSON_Delete(param);
 
-    blinker_button_print(&button1, &config);
-}
-
-void data_callback(const cJSON *data)
-{
-    BLINKER_LOG(TAG, "get json data");
-
-    counter++;
-
-    char count[10];
-    sprintf(count, "%d", counter);
-
-    blinker_number_config_t config = {
-        .value = count,
-    };
-
-    blinker_number_print(&number1, &config);
+    cJSON *num_param = cJSON_CreateObject();
+    blinker_widget_color(num_param, "#FF00FF");
+    blinker_widget_text(num_param, "按键测试");
+    blinker_widget_unit(num_param, "次");
+    blinker_widget_value_number(num_param, count);
+    blinker_widget_print(NUM_1, num_param);
+    cJSON_Delete(num_param);
 }
 
 void app_main()
 {
-    BLINKER_DEBUG_ALL();
-    
-    blinker_button_init(&button1, button1_callback);
-    blinker_attach_data(data_callback);
-
     blinker_init();
+
+    blinker_widget_add(BUTTON_1, BLINKER_BUTTON, button_callback);
 }
