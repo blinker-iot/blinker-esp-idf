@@ -18,7 +18,7 @@ enter Blinker Config
 
 * set BLINKER AUTH KEY  
 
-* set Provisioning  
+* set Provisioning Type  
 
 save and exit blinker config  
 
@@ -28,7 +28,7 @@ enter components config
 
 * enable mDNS  
 
-* disable Newib  
+* disable Newlib  
 
 save and exit
 
