@@ -89,7 +89,7 @@ extern "C"
 
 #define BLINKER_CMD_UNIT            "uni"
 
-#define BLINKER_CMD_ALIGENIE        "Aligenie"
+#define BLINKER_CMD_ALIGENIE        "AliGenie"
 
 #define BLINKER_CMD_DUEROS          "DuerOS"
 

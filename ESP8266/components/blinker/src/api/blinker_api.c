@@ -126,6 +126,7 @@ static esp_err_t blinker_va_print(cJSON *param, blinker_data_from_param_t *from_
     esp_err_t err    = ESP_FAIL;
 
     cJSON *root      = NULL;
+    char *print_data = NULL;
     char *pub_topic  = NULL;
 
     if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
@@ -135,7 +136,7 @@ static esp_err_t blinker_va_print(cJSON *param, blinker_data_from_param_t *from_
         cJSON_AddStringToObject(root, BLINKER_CMD_DEVICE_TYPE, BLINKER_CMD_VASSISTANT);
         cJSON_AddItemToObject(root, BLINKER_CMD_DATA, param);
 
-        char *print_data = calloc(BLINKER_FORMAT_DATA_SIZE, sizeof(char));
+        print_data = calloc(BLINKER_FORMAT_DATA_SIZE, sizeof(char));
         
         asprintf(&pub_topic, "/sys/%s/%s/rrpc/response%s", 
                 blinker_mqtt_product_key(),
@@ -167,7 +168,9 @@ static esp_err_t blinker_va_print(cJSON *param, blinker_data_from_param_t *from_
         cJSON_AddStringToObject(root, BLINKER_CMD_DEVICE_TYPE, BLINKER_CMD_VASSISTANT);
         cJSON_AddItemToObject(root, BLINKER_CMD_DATA, param);
 
-        char *print_data = cJSON_PrintUnformatted(root);
+        print_data = calloc(BLINKER_FORMAT_DATA_SIZE, sizeof(char));
+        
+        cJSON_PrintPreallocated(root, print_data, BLINKER_FORMAT_DATA_SIZE, false);
 
         asprintf(&pub_topic, "/device/%s/s",
                 blinker_mqtt_devicename());
@@ -178,12 +181,12 @@ static esp_err_t blinker_va_print(cJSON *param, blinker_data_from_param_t *from_
             cJSON_Delete(root);
             return err;
         }
+        cJSON_Delete(root);
         
         err = blinker_mqtt_publish(pub_topic, print_data, strlen(print_data));
 
         BLINKER_FREE(print_data);
         BLINKER_FREE(pub_topic);
-        cJSON_Delete(root);
     }
 
     blinker_log_print_heap();
@@ -1113,6 +1116,8 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
 
 static blinker_data_from_type_t blinker_device_user_check(const char *user_name)
 {
+    ESP_LOGI(TAG, "user_name: %s, len: %d", user_name, strlen(user_name));
+
     if (strncmp(blinker_mqtt_uuid(), user_name, strlen(user_name)) == 0) {
         return BLINKER_DATA_FROM_USER;
     } else if (strncmp(BLINKER_CMD_ALIGENIE, user_name, strlen(user_name)) == 0) {
@@ -1178,7 +1183,7 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
                         data_from->message_id = strdup(cJSON_GetObjectItem(main_data, BLINKER_CMD_MESSAGE_ID)->valuestring);
                     }
                 }
-            
+                
                 ESP_LOGI(TAG, "message_id: %s", data_from->message_id);
             }
 
@@ -1343,14 +1348,14 @@ esp_err_t blinker_init(void)
     
     err = blinker_device_mqtt_init(&mqtt_config);
 
+    blinker_timesync_start();
+
     TimerHandle_t b_http_heart_beat_timer = xTimerCreate("http_heart_beat",
                                                         pdMS_TO_TICKS(CONFIG_BLINKER_HTTP_HEART_BEAT_TIME_INTERVAL*BLINKER_MIN_TO_MS),
                                                         true, 
                                                         NULL, 
                                                         blinker_http_heart_beat);
-    xTimerStart(b_http_heart_beat_timer, 0);    
-    
-    blinker_timesync_start();
+    xTimerStart(b_http_heart_beat_timer, 0);
 
     return err;
 }
