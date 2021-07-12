@@ -13,9 +13,11 @@ extern "C"
 
 #define BLINKER_FORMAT_DATA_SIZE    1024
 
-#define BLINKER_MIN_TO_S            60u
+#define BLINKER_MIN_TO_S            60
 
 #define BLINKER_MIN_TO_MS           BLINKER_MIN_TO_S * 1000UL
+
+#define BLINKER_REGISTER_INTERVAL   20000U
 
 #define BLINKER_CMD_DETAIL          "detail"
 

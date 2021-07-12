@@ -257,7 +257,7 @@ menu "Blinker Config"
 
         config BLINKER_WITH_SSL
             bool "blinker with ssl"
-            default y
+            default n
             help
                 Blinker main protocol mqtt use ssl.
     endmenu

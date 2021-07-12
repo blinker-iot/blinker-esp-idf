@@ -1,6 +1,6 @@
 # Blinker hello example  
 
-put the componets into your projects.
+put the blinker componets into your projects.
 
 make the project list like this  
 ```
@@ -9,6 +9,8 @@ Blinker_Hello
   |  |__blinker
   |__main
 ```
+
+override the esp_http_server components with we provide.
 
 ```
 idf.py menuconfig
@@ -29,6 +31,8 @@ enter components config
 * enable mDNS  
 
 * disable Newlib  
+
+* enable HTTPD_WS_SUPPORT(http_server)  
 
 save and exit
 

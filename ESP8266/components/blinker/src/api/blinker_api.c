@@ -26,6 +26,10 @@ typedef enum {
 } blinker_data_from_type_t;
 
 typedef enum {
+    BLINKER_EVENT_WIFI_INIT = 0,
+} blinker_event_t;
+
+typedef enum {
     BLINKER_HTTP_HEART_BEAT = 0,
 } blinker_device_http_type_t;
 
@@ -43,6 +47,7 @@ typedef struct {
 
 static const char* TAG                      = "blinker_api";
 static xQueueHandle auto_format_queue       = NULL;
+static SemaphoreHandle_t data_parse_mutex   = NULL;
 static blinker_data_from_param_t *data_from = NULL;
 static blinker_va_data_t *va_ali            = NULL;
 static blinker_va_data_t *va_duer           = NULL;
@@ -1077,12 +1082,6 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
             mqtt_cfg->client_id  = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_DEVICE_NAME)->valuestring);
             mqtt_cfg->username   = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_USER_NAME)->valuestring);
             mqtt_cfg->password   = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_PASS_WORD)->valuestring);
-#if defined(CONFIG_BLINKER_WITH_SSL)
-            mqtt_cfg->devicename = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_DEVICE_NAME)->valuestring);
-#else
-            mqtt_cfg->devicename = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_USER_NAME)->valuestring);
-            mqtt_cfg->devicename = strtok(mqtt_cfg->devicename, "&");
-#endif
             mqtt_cfg->productkey = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_PRODUCT_KEY)->valuestring);
             mqtt_cfg->uuid       = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_UUID)->valuestring);
             mqtt_cfg->uri        = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_HOST)->valuestring);
@@ -1094,6 +1093,17 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
             } else {
                 mqtt_cfg->broker = BLINKER_BROKER_BLINKER;
             }
+
+#if defined(CONFIG_BLINKER_WITH_SSL)
+            mqtt_cfg->devicename = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_DEVICE_NAME)->valuestring);
+#else
+            if (mqtt_cfg->broker == BLINKER_BROKER_ALIYUN) {
+                mqtt_cfg->devicename = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_USER_NAME)->valuestring);
+                mqtt_cfg->devicename = strtok(mqtt_cfg->devicename, "&");
+            } else {
+                mqtt_cfg->devicename = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_DEVICE_NAME)->valuestring);
+            }
+#endif
 
             ESP_LOGI(TAG, "devicename: %s", mqtt_cfg->devicename);
             ESP_LOGI(TAG, "client_id: %s",  mqtt_cfg->client_id);
@@ -1135,6 +1145,8 @@ static blinker_data_from_type_t blinker_device_user_check(const char *user_name)
 
 static void blinker_device_data_callback(const char *topic, size_t topic_len, void *payload, size_t payload_len)
 {
+    xSemaphoreTake(data_parse_mutex, portMAX_DELAY);
+
     cJSON *sub_data = cJSON_Parse(payload);
 
     if (sub_data == NULL) {
@@ -1224,6 +1236,8 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
     }
 
     cJSON_Delete(sub_data);
+
+    xSemaphoreGive(data_parse_mutex);
 }
 
 static void blinker_http_heart_beat(void *timer)
@@ -1272,11 +1286,104 @@ static esp_err_t blinker_reboot_reset_check(void)
     return ESP_OK;
 }
 
-static esp_err_t blinker_device_mqtt_init(blinker_mqtt_config_t *config)
+// static esp_err_t blinker_device_mqtt_init(blinker_mqtt_config_t *config)
+// static esp_err_t blinker_device_mqtt_init(void)
+// {
+//     esp_err_t err = ESP_FAIL;
+
+//     // err = blinker_mqtt_init(config);
+//     err = blinker_mqtt_connect();
+
+//     char *sub_topic = NULL;
+//     if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
+//         asprintf(&sub_topic, "/%s/%s/r",
+//                 blinker_mqtt_product_key(),
+//                 blinker_mqtt_devicename());
+//     } else if (blinker_mqtt_broker() == BLINKER_BROKER_BLINKER) {
+//         asprintf(&sub_topic, "/device/%s/r",
+//                 blinker_mqtt_devicename());
+//     }
+
+//     if (sub_topic != NULL) {
+//         blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
+//     }
+//     BLINKER_FREE(sub_topic);
+
+//     if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
+//         asprintf(&sub_topic, "/sys/%s/%s/rrpc/request/+",
+//                 blinker_mqtt_product_key(),
+//                 blinker_mqtt_devicename());
+
+//         if (sub_topic != NULL) {
+//             blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
+//         }
+//         BLINKER_FREE(sub_topic);
+//     }
+
+//     return err;
+// }
+
+// static void event_handler(void *arg, esp_event_base_t event_base,
+//                         int32_t event_id, void *event_data)
+// {
+//     switch (event_id)
+//     {
+//         case BLINKER_EVENT_WIFI_INIT:
+//             /* code */
+//             break;
+        
+//         default:
+//             break;
+//     }
+// }
+
+static const int REGISTERED_BIT = BIT0;
+static EventGroupHandle_t b_register_group = NULL;
+
+static void blinker_device_register_task(void *arg)
+{
+    esp_err_t err = ESP_FAIL;
+    blinker_mqtt_config_t mqtt_config = {0};
+
+    for(;;) {
+        err = blinker_device_register(&mqtt_config);
+
+        if (err != ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL));
+            continue;
+        }
+
+        err = blinker_mdns_init(mqtt_config.devicename);
+        err = blinker_mqtt_init(&mqtt_config);
+
+        if (err == ESP_OK) {
+            break;
+        }
+    }
+
+    xEventGroupSetBits(b_register_group, REGISTERED_BIT);
+
+    vTaskDelete(NULL);
+}
+
+static esp_err_t blinker_device_mqtt_init(void)
 {
     esp_err_t err = ESP_FAIL;
 
-    err = blinker_mqtt_init(config);
+    b_register_group = xEventGroupCreate();
+
+    xTaskCreate(blinker_device_register_task, 
+                "device_register",
+                2 * 1024,
+                NULL,
+                3,
+                NULL);
+
+    xEventGroupWaitBits(b_register_group, REGISTERED_BIT,
+                        pdFALSE,
+                        pdFALSE,
+                        portMAX_DELAY);
+
     err = blinker_mqtt_connect();
 
     char *sub_topic = NULL;
@@ -1312,7 +1419,9 @@ esp_err_t blinker_init(void)
 {
     esp_err_t err = ESP_FAIL;
 
-    blinker_mqtt_config_t mqtt_config = {0};
+    // blinker_mqtt_config_t mqtt_config = {0};
+
+    data_parse_mutex = xSemaphoreCreateMutex();
 
 #if defined(CONFIG_REBOOT_RESET_TYPE)
     err = blinker_reboot_reset_check();
@@ -1320,21 +1429,10 @@ esp_err_t blinker_init(void)
     err = blinker_button_reset_init();
 #endif
     err = blinker_wifi_init();
-    err = blinker_device_register(&mqtt_config);
-    err = blinker_mdns_init(mqtt_config.devicename);
 
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
-    xTaskCreate(blinker_device_auto_format_task, 
-                "device_auto_format",
-                2 * 1024,
-                NULL,
-                3,
-                NULL);
-
+    blinker_timesync_start();
+    
+    err = blinker_device_mqtt_init();
     
 #ifndef CONFIG_BLINKER_ALIGENIE_NONE
     blinker_aligenie_init();
@@ -1345,10 +1443,14 @@ esp_err_t blinker_init(void)
 #ifndef CONFIG_BLINKER_MIOT_NONE
     blinker_miot_init();
 #endif
-    
-    err = blinker_device_mqtt_init(&mqtt_config);
 
-    blinker_timesync_start();
+    auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
+    xTaskCreate(blinker_device_auto_format_task, 
+                "device_auto_format",
+                2 * 1024,
+                NULL,
+                3,
+                NULL);
 
     TimerHandle_t b_http_heart_beat_timer = xTimerCreate("http_heart_beat",
                                                         pdMS_TO_TICKS(CONFIG_BLINKER_HTTP_HEART_BEAT_TIME_INTERVAL*BLINKER_MIN_TO_MS),
