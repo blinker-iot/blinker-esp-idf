@@ -32,7 +32,7 @@ enter components config
 
 * disable Newlib  
 
-* enable HTTPD_WS_SUPPORT(http_server)  
+* enable webSocket server support(http_server)  
 
 save and exit
 

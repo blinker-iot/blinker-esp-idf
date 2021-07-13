@@ -79,6 +79,7 @@ esp_err_t httpd_register_uri_handler(httpd_handle_t handle,
             hd->hd_calls[i]->handler  = uri_handler->handler;
             hd->hd_calls[i]->user_ctx = uri_handler->user_ctx;
 #ifdef CONFIG_HTTPD_WS_SUPPORT
+            hd->hd_calls[i]->connect_cb   = uri_handler->connect_cb; // blinker
             hd->hd_calls[i]->is_websocket = uri_handler->is_websocket;
             hd->hd_calls[i]->handle_ws_control_frames = uri_handler->handle_ws_control_frames;
             if (uri_handler->supported_subprotocol) {
@@ -236,6 +237,10 @@ esp_err_t httpd_uri(struct httpd_data *hd)
         aux->sd->ws_handshake_done = true;
         aux->sd->ws_handler = uri->handler;
         aux->sd->ws_control_frames = uri->handle_ws_control_frames;
+
+        if (uri->connect_cb) {
+            uri->connect_cb(req); // blinker
+        }
 
         /* Return immediately after handshake, no need to call handler here */
         return ESP_OK;

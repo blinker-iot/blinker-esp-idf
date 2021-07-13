@@ -1444,6 +1444,8 @@ esp_err_t blinker_init(void)
     blinker_miot_init();
 #endif
 
+    blinker_websocker_server_init();
+
     auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
     xTaskCreate(blinker_device_auto_format_task, 
                 "device_auto_format",
