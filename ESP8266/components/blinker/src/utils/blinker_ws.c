@@ -6,11 +6,12 @@
 #include <nvs_flash.h>
 #include <sys/param.h>
 
-#include <esp_http_server.h>
 #include "blinker_config.h"
 #include "blinker_utils.h"
+#include "blinker_ws.h"
 
-static const char *TAG       = "blinker_ws";
+static const char *TAG = "blinker_ws";
+static blinker_websocket_data_cb_t ws_cb = NULL;
 
 // /*
 //  * Structure holding server handle
@@ -49,6 +50,32 @@ static const char *TAG       = "blinker_ws";
 //     return httpd_queue_work(handle, ws_async_send, resp_arg);
 // }
 
+esp_err_t blinker_websocket_async_print(async_resp_arg_t *arg, const char *payload)
+{
+    httpd_ws_frame_t ws_pkt;
+    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+    ws_pkt.payload = (uint8_t *)payload;
+    ws_pkt.len     = strlen(payload);
+    ws_pkt.type    = HTTPD_WS_TYPE_TEXT;
+
+    esp_err_t err = httpd_ws_send_frame_async(arg->hd, arg->fd, &ws_pkt);
+
+    return err;
+}
+
+esp_err_t blinker_websocket_print(httpd_req_t *req, const char *payload)
+{
+    httpd_ws_frame_t ws_pkt;
+    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+    ws_pkt.payload = (uint8_t *)payload;
+    ws_pkt.len     = strlen(payload);
+    ws_pkt.type    = HTTPD_WS_TYPE_TEXT;
+
+    esp_err_t err = httpd_ws_send_frame(req, &ws_pkt);
+
+    return err;
+}
+
 static esp_err_t echo_handler(httpd_req_t *req)
 {
     uint8_t buf[128] = { 0 };
@@ -63,6 +90,10 @@ static esp_err_t echo_handler(httpd_req_t *req)
     }
     ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
     ESP_LOGI(TAG, "Packet type: %d", ws_pkt.type);
+
+    if (ws_pkt.type == HTTPD_WS_TYPE_TEXT && ws_cb != NULL) {
+        ws_cb(req, (char*)ws_pkt.payload);
+    }
     // if (ws_pkt.type == HTTPD_WS_TYPE_TEXT &&
     //     strcmp((char*)ws_pkt.payload,"Trigger async") == 0) {
     //     return trigger_async_send(req->handle, req);
@@ -78,12 +109,13 @@ static esp_err_t echo_handler(httpd_req_t *req)
 static esp_err_t ws_connect_handler(httpd_req_t *req)
 {
     char *buf = "{\"state\":\"connected\"}\n";
-    httpd_ws_frame_t ws_pkt;
-    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.payload = (uint8_t *)buf;
-    ws_pkt.len     = strlen(buf);
-    ws_pkt.type    = HTTPD_WS_TYPE_TEXT;
-    httpd_ws_send_frame(req, &ws_pkt);
+    // httpd_ws_frame_t ws_pkt;
+    // memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+    // ws_pkt.payload = (uint8_t *)buf;
+    // ws_pkt.len     = strlen(buf);
+    // ws_pkt.type    = HTTPD_WS_TYPE_TEXT;
+    // httpd_ws_send_frame(req, &ws_pkt);
+    blinker_websocket_print(req, buf);
     return ESP_OK;
 }
 
@@ -142,14 +174,18 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t blinker_websocker_server_init(void)
+esp_err_t blinker_websocket_server_init(blinker_websocket_data_cb_t cb)
 {
     static httpd_handle_t server = NULL;
 
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
+    if (server == NULL) {
+        ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
+        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
 
-    server = start_webserver();
+        server = start_webserver();
+    }
+
+    ws_cb = cb;
 
     return ESP_OK;
 }

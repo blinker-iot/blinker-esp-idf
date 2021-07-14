@@ -16,9 +16,11 @@
 #include "blinker_mqtt.h"
 #include "blinker_storage.h"
 #include "blinker_wifi.h"
+#include "blinker_ws.h"
 
 typedef enum {
-    BLINKER_DATA_FROM_USER = 0,
+    BLINKER_DATA_FROM_WS = 0,
+    BLINKER_DATA_FROM_USER,
     BLINKER_DATA_FROM_ALIGENIE,
     BLINKER_DATA_FROM_DUEROS,
     BLINKER_DATA_FROM_MIOT,
@@ -42,6 +44,7 @@ typedef struct {
 typedef struct {
     char *uuid;
     char *message_id;
+    async_resp_arg_t *resp_arg;
     blinker_data_from_type_t type;
 } blinker_data_from_param_t;
 
@@ -948,7 +951,7 @@ static void blinker_widget_parse(cJSON *data)
 
 /////////////////////////////////////////////////////////////////////////
 
-static void blinker_device_print_to_user(const char *data)
+static void blinker_device_print_to_user(char *data)
 {
     char *pub_topic = NULL;
     if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
@@ -960,7 +963,12 @@ static void blinker_device_print_to_user(const char *data)
                 blinker_mqtt_devicename());
     }
 
-    blinker_mqtt_publish(pub_topic, data, strlen(data));
+    if (data_from && data_from->type == BLINKER_DATA_FROM_WS) {
+        strcat(data, "\n");
+        blinker_websocket_async_print(data_from->resp_arg, data);
+    } else {
+        blinker_mqtt_publish(pub_topic, data, strlen(data));
+    }
 
     BLINKER_FREE(pub_topic);
 }
@@ -973,23 +981,28 @@ static void blinker_device_auto_format_task(void *arg)
     for(;;) {
         if (xQueueReceive(auto_format_queue, &format_queue, pdMS_TO_TICKS(BLINKER_FORMAT_QUEUE_TIME)) == pdFALSE) {
             if (format_data != NULL) {
-                cJSON *format_print = cJSON_CreateObject();
                 
-                if (data_from && data_from->type == BLINKER_DATA_FROM_USER) {
-                    cJSON_AddStringToObject(format_print, BLINKER_CMD_TO_DEVICE, data_from->uuid);
-                } else {
-                    cJSON_AddStringToObject(format_print, BLINKER_CMD_TO_DEVICE, blinker_mqtt_uuid());
+                if (data_from && data_from->type == BLINKER_DATA_FROM_WS) {
+                    blinker_device_print_to_user(format_data);
+
+                    BLINKER_FREE(format_data);
+                }else {
+                    cJSON *format_print = cJSON_CreateObject();
+                    if (data_from && data_from->type == BLINKER_DATA_FROM_USER) {
+                        cJSON_AddStringToObject(format_print, BLINKER_CMD_TO_DEVICE, data_from->uuid);
+                    } else {
+                        cJSON_AddStringToObject(format_print, BLINKER_CMD_TO_DEVICE, blinker_mqtt_uuid());
+                    }
+                    cJSON_AddStringToObject(format_print, BLINKER_CMD_FROM_DEVICE, blinker_mqtt_devicename());
+                    cJSON_AddStringToObject(format_print, BLINKER_CMD_DEVICE_TYPE, BLINKER_CMD_OWN_APP);
+                    cJSON_AddRawToObject(format_print, BLINKER_CMD_DATA, format_data);
+                    cJSON_PrintPreallocated(format_print, format_data, 1024, false);
+                    cJSON_Delete(format_print);
+
+                    blinker_device_print_to_user(format_data);
+
+                    BLINKER_FREE(format_data);
                 }
-                cJSON_AddStringToObject(format_print, BLINKER_CMD_FROM_DEVICE, blinker_mqtt_devicename());
-                cJSON_AddStringToObject(format_print, BLINKER_CMD_DEVICE_TYPE, BLINKER_CMD_OWN_APP);
-                cJSON_AddRawToObject(format_print, BLINKER_CMD_DATA, format_data);
-                cJSON_PrintPreallocated(format_print, format_data, 1024, false);
-                cJSON_Delete(format_print);
-
-                blinker_device_print_to_user(format_data);
-
-                BLINKER_FREE(format_data);
-
                 blinker_log_print_heap();
             }
             continue;
@@ -1143,7 +1156,67 @@ static blinker_data_from_type_t blinker_device_user_check(const char *user_name)
     }
 }
 
-static void blinker_device_data_callback(const char *topic, size_t topic_len, void *payload, size_t payload_len)
+static void blinker_websocket_data_callbck(httpd_req_t *req, const char *payload)
+{
+    xSemaphoreTake(data_parse_mutex, portMAX_DELAY);
+
+    cJSON *ws_data = cJSON_Parse(payload);
+
+    if (ws_data == NULL) {
+        cJSON_Delete(ws_data);
+        xSemaphoreGive(data_parse_mutex);
+        return;
+    }
+
+    // if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_DATA))
+    // {
+        if (data_from) {
+            if (data_from->uuid) {
+                BLINKER_FREE(data_from->uuid);
+            }
+            if (data_from->message_id) {
+                BLINKER_FREE(data_from->message_id);
+            }
+            if (data_from->resp_arg) {
+                BLINKER_FREE(data_from->resp_arg->hd);
+                BLINKER_FREE(data_from->resp_arg);
+            }
+            BLINKER_FREE(data_from);
+        }
+
+        data_from = calloc(1, sizeof(blinker_data_from_param_t));
+
+        if (data_from) {
+            data_from->resp_arg = calloc(1, sizeof(async_resp_arg_t));
+            data_from->resp_arg->hd = req->handle;
+            data_from->resp_arg->fd = httpd_req_to_sockfd(req);;
+            // data_from->uuid = strdup(cJSON_GetObjectItem(ws_data, BLINKER_CMD_FROM_DEVICE)->valuestring);
+            data_from->type = BLINKER_DATA_FROM_WS;
+
+            // cJSON *main_data = cJSON_GetObjectItem(ws_data, BLINKER_CMD_DATA);
+            // if (main_data == NULL) {
+            //     BLINKER_FREE(data_from->uuid);
+            //     BLINKER_FREE(data_from);
+            //     cJSON_Delete(main_data);
+            //     cJSON_Delete(ws_data);
+            //     xSemaphoreGive(data_parse_mutex);
+            //     return;
+            // }
+
+            if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_GET)) {
+                blinker_device_heart_beat(ws_data);
+            } else {
+                blinker_widget_parse(ws_data);
+            }
+            // cJSON_Delete(main_data);
+        }
+    // }
+    cJSON_Delete(ws_data);
+
+    xSemaphoreGive(data_parse_mutex);
+}
+
+static void blinker_mqtt_data_callback(const char *topic, size_t topic_len, void *payload, size_t payload_len)
 {
     xSemaphoreTake(data_parse_mutex, portMAX_DELAY);
 
@@ -1151,6 +1224,7 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
 
     if (sub_data == NULL) {
         cJSON_Delete(sub_data);
+        xSemaphoreGive(data_parse_mutex);
         return;
     }
 
@@ -1163,6 +1237,9 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
             if (data_from->message_id) {
                 BLINKER_FREE(data_from->message_id);
             }
+            if (data_from->resp_arg) {
+                BLINKER_FREE(data_from->resp_arg);
+            }
             BLINKER_FREE(data_from);
         }
 
@@ -1173,8 +1250,11 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
 
             cJSON *main_data = cJSON_GetObjectItem(sub_data, BLINKER_CMD_DATA);
             if (main_data == NULL) {
+                BLINKER_FREE(data_from->uuid);
+                BLINKER_FREE(data_from);
                 cJSON_Delete(main_data);
                 cJSON_Delete(sub_data);
+                xSemaphoreGive(data_parse_mutex);
                 return;
             }
 
@@ -1232,6 +1312,8 @@ static void blinker_device_data_callback(const char *topic, size_t topic_len, vo
             }
         
             cJSON_Delete(main_data);
+        } else {
+            BLINKER_FREE(data_from);
         }
     }
 
@@ -1305,7 +1387,7 @@ static esp_err_t blinker_reboot_reset_check(void)
 //     }
 
 //     if (sub_topic != NULL) {
-//         blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
+//         blinker_mqtt_subscribe(sub_topic, blinker_mqtt_data_callback);
 //     }
 //     BLINKER_FREE(sub_topic);
 
@@ -1315,7 +1397,7 @@ static esp_err_t blinker_reboot_reset_check(void)
 //                 blinker_mqtt_devicename());
 
 //         if (sub_topic != NULL) {
-//             blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
+//             blinker_mqtt_subscribe(sub_topic, blinker_mqtt_data_callback);
 //         }
 //         BLINKER_FREE(sub_topic);
 //     }
@@ -1397,7 +1479,7 @@ static esp_err_t blinker_device_mqtt_init(void)
     }
 
     if (sub_topic != NULL) {
-        blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
+        blinker_mqtt_subscribe(sub_topic, blinker_mqtt_data_callback);
     }
     BLINKER_FREE(sub_topic);
 
@@ -1407,7 +1489,7 @@ static esp_err_t blinker_device_mqtt_init(void)
                 blinker_mqtt_devicename());
 
         if (sub_topic != NULL) {
-            blinker_mqtt_subscribe(sub_topic, blinker_device_data_callback);
+            blinker_mqtt_subscribe(sub_topic, blinker_mqtt_data_callback);
         }
         BLINKER_FREE(sub_topic);
     }
@@ -1444,7 +1526,7 @@ esp_err_t blinker_init(void)
     blinker_miot_init();
 #endif
 
-    blinker_websocker_server_init();
+    blinker_websocket_server_init(blinker_websocket_data_callbck);
 
     auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
     xTaskCreate(blinker_device_auto_format_task, 
