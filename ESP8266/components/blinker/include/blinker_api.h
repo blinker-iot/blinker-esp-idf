@@ -91,6 +91,8 @@ typedef struct {
     SLIST_HEAD(va_list_, blinker_va_param) va_param_list;
 } blinker_va_data_t;
 
+esp_err_t blinker_weather(char **payload, const int city);
+
 esp_err_t blinker_va_multi_num(cJSON *param, const int num);
  
 esp_err_t blinker_aligenie_power_state(cJSON *param, const char *state);

@@ -117,6 +117,8 @@ menu "Blinker Config"
             bool "DefaultConfig"
         config BLINKER_SMART_CONFIG
             bool "SmartConfig"
+        config BLINKER_AP_CONFIG
+            bool "ApConfig"
 
         endchoice
 
@@ -163,6 +165,12 @@ menu "Blinker Config"
     endmenu
 
     menu "Blinker Utils"
+        config BLINKER_SERVER_HOST
+            string "Blinker Server Host"
+            default "iot.diandeng.tech"
+            help
+                Blinker Server Host.
+                
         config BLINKER_NVS_NAMESPACE
             string "Namespace where data is stored in NVS"
             default "blinker_app"

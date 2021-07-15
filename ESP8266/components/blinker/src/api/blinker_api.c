@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -14,6 +15,8 @@
 #include "blinker_config.h"
 #include "blinker_http.h"
 #include "blinker_mqtt.h"
+#include "blinker_prov_apconfig.h"
+#include "blinker_prov_smartconfig.h"
 #include "blinker_storage.h"
 #include "blinker_wifi.h"
 #include "blinker_ws.h"
@@ -33,6 +36,7 @@ typedef enum {
 
 typedef enum {
     BLINKER_HTTP_HEART_BEAT = 0,
+    BLINKER_HTTP_WEATHER,
 } blinker_device_http_type_t;
 
 typedef struct {
@@ -55,8 +59,44 @@ static blinker_data_from_param_t *data_from = NULL;
 static blinker_va_data_t *va_ali            = NULL;
 static blinker_va_data_t *va_duer           = NULL;
 static blinker_va_data_t *va_miot           = NULL;
+static const int REGISTERED_BIT             = BIT0;
+static EventGroupHandle_t b_register_group  = NULL;
+#if defined CONFIG_BLINKER_AP_CONFIG
+static const int AP_DONE_BIT                = BIT0;
+static EventGroupHandle_t b_apconfig_group  = NULL;
+#endif
 
 static SLIST_HEAD(widget_list_, blinker_widget_data) blinker_widget_list;
+static void blinker_device_http(const char *url, const char *msg, char *payload, const int payload_len, blinker_device_http_type_t type);
+
+/////////////////////////////////////////////////////////////////////////
+
+esp_err_t blinker_weather(char **payload, const int city)
+{
+    *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, sizeof(char));
+    char *url = NULL;
+
+    asprintf(&url, "%s://%s/api/v3/weather?deviceName=%s&key=%s&code=%d",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
+            blinker_mqtt_devicename(),
+            blinker_mqtt_token(),
+            city);
+
+    if (!url || !*payload) {
+        BLINKER_FREE(*payload);
+        BLINKER_FREE(url);
+        return ESP_FAIL;
+    }
+
+    blinker_device_http(url, "", *payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, BLINKER_HTTP_WEATHER);
+
+    BLINKER_FREE(url);
+
+    return ESP_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////
 
 static void blinker_device_print(const char *key, const char *value, bool is_raw)
 {
@@ -114,6 +154,13 @@ static void blinker_device_http(const char *url, const char *msg, char *payload,
     switch (type)
     {
         case BLINKER_HTTP_HEART_BEAT:
+            blinker_http_set_url(client, url);
+            blinker_http_get(client);
+            blinker_http_read_response(client, payload, payload_len);
+            blinker_http_close(client);
+            break;
+
+        case BLINKER_HTTP_WEATHER:
             blinker_http_set_url(client, url);
             blinker_http_get(client);
             blinker_http_read_response(client, payload, payload_len);
@@ -1064,7 +1111,9 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
     char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE, sizeof(char));
     char *url = NULL;
 
-    asprintf(&url, "http://iot.diandeng.tech/api/v1/user/device/diy/auth?authKey=%s&protocol=%s&version=%s%s%s%s",
+    asprintf(&url, "%s://%s/api/v1/user/device/diy/auth?authKey=%s&protocol=%s&version=%s%s%s%s",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
             CONFIG_BLINKER_AUTH_KEY,
             BLINKER_PROTOCOL_MQTT,
             CONFIG_BLINKER_FIRMWARE_VERSION,
@@ -1167,6 +1216,24 @@ static void blinker_websocket_data_callbck(httpd_req_t *req, const char *payload
         xSemaphoreGive(data_parse_mutex);
         return;
     }
+
+#if defined CONFIG_BLINKER_AP_CONFIG
+    if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_SSID) && b_apconfig_group) {
+        wifi_config_t wifi_cfg = {0};
+        strcpy((char *)wifi_cfg.sta.ssid, cJSON_GetObjectItem(ws_data, BLINKER_CMD_SSID)->valuestring);
+        strcpy((char *)wifi_cfg.sta.password, cJSON_GetObjectItem(ws_data, BLINKER_CMD_PASSWORD)->valuestring);
+
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_cfg));
+        ESP_ERROR_CHECK(esp_wifi_connect());
+
+        cJSON_Delete(ws_data);
+        xSemaphoreGive(data_parse_mutex);
+        xEventGroupSetBits(b_apconfig_group, AP_DONE_BIT);
+
+        return;
+    }
+#endif
 
     // if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_DATA))
     // {
@@ -1327,7 +1394,9 @@ static void blinker_http_heart_beat(void *timer)
     char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, sizeof(char));
     char *url = NULL;
 
-    asprintf(&url, "http://iot.diandeng.tech/api/v1/user/device/heartbeat?deviceName=%s&key=%s&heartbeat=%d",
+    asprintf(&url, "%s://%s/api/v1/user/device/heartbeat?deviceName=%s&key=%s&heartbeat=%d",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
             blinker_mqtt_devicename(),
             blinker_mqtt_authkey(),
             CONFIG_BLINKER_HTTP_HEART_BEAT_TIME_INTERVAL * BLINKER_MIN_TO_S);
@@ -1347,6 +1416,7 @@ static void blinker_http_heart_beat(void *timer)
 static void blinker_button_reset_cb(void *arg)
 {
     blinker_storage_erase(CONFIG_BLINKER_NVS_NAMESPACE);
+    vTaskDelay(pdMS_TO_TICKS(100));
     esp_restart();
 }
 
@@ -1367,60 +1437,6 @@ static esp_err_t blinker_reboot_reset_check(void)
 
     return ESP_OK;
 }
-
-// static esp_err_t blinker_device_mqtt_init(blinker_mqtt_config_t *config)
-// static esp_err_t blinker_device_mqtt_init(void)
-// {
-//     esp_err_t err = ESP_FAIL;
-
-//     // err = blinker_mqtt_init(config);
-//     err = blinker_mqtt_connect();
-
-//     char *sub_topic = NULL;
-//     if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
-//         asprintf(&sub_topic, "/%s/%s/r",
-//                 blinker_mqtt_product_key(),
-//                 blinker_mqtt_devicename());
-//     } else if (blinker_mqtt_broker() == BLINKER_BROKER_BLINKER) {
-//         asprintf(&sub_topic, "/device/%s/r",
-//                 blinker_mqtt_devicename());
-//     }
-
-//     if (sub_topic != NULL) {
-//         blinker_mqtt_subscribe(sub_topic, blinker_mqtt_data_callback);
-//     }
-//     BLINKER_FREE(sub_topic);
-
-//     if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
-//         asprintf(&sub_topic, "/sys/%s/%s/rrpc/request/+",
-//                 blinker_mqtt_product_key(),
-//                 blinker_mqtt_devicename());
-
-//         if (sub_topic != NULL) {
-//             blinker_mqtt_subscribe(sub_topic, blinker_mqtt_data_callback);
-//         }
-//         BLINKER_FREE(sub_topic);
-//     }
-
-//     return err;
-// }
-
-// static void event_handler(void *arg, esp_event_base_t event_base,
-//                         int32_t event_id, void *event_data)
-// {
-//     switch (event_id)
-//     {
-//         case BLINKER_EVENT_WIFI_INIT:
-//             /* code */
-//             break;
-        
-//         default:
-//             break;
-//     }
-// }
-
-static const int REGISTERED_BIT = BIT0;
-static EventGroupHandle_t b_register_group = NULL;
 
 static void blinker_device_register_task(void *arg)
 {
@@ -1497,11 +1513,56 @@ static esp_err_t blinker_device_mqtt_init(void)
     return err;
 }
 
+static esp_err_t blinker_wifi_get_config(wifi_config_t *wifi_config)
+{
+    if (blinker_storage_get("wifi_config", wifi_config, sizeof(wifi_config_t)) == ESP_OK) {
+#if defined CONFIG_BLINKER_DEFAULT_CONFIG
+        if (!strcmp((char *)wifi_config->sta.ssid, CONFIG_BLINKER_WIFI_SSID)) {
+            return ESP_OK;
+        }
+#else
+        return ESP_OK;
+#endif
+    }
+
+    esp_wifi_restore();
+
+#if defined CONFIG_BLINKER_DEFAULT_CONFIG
+    strcpy((char *)wifi_config->sta.ssid, CONFIG_BLINKER_WIFI_SSID);
+    strcpy((char *)wifi_config->sta.password, CONFIG_BLINKER_WIFI_PASSWORD);
+#elif defined CONFIG_BLINKER_SMART_CONFIG
+    blinker_prov_smartconfig_init();
+#elif defined CONFIG_BLINKER_AP_CONFIG
+    b_apconfig_group = xEventGroupCreate();
+    blinker_prov_apconfig_init();
+    blinker_websocket_server_init(blinker_websocket_data_callbck);
+    xEventGroupWaitBits(b_apconfig_group, AP_DONE_BIT, true, false, portMAX_DELAY);
+#endif
+
+    
+#ifndef CONFIG_BLINKER_DEFAULT_CONFIG
+    esp_wifi_get_config(ESP_IF_WIFI_STA, wifi_config);
+#endif
+    blinker_storage_set("wifi_config", wifi_config, sizeof(wifi_config_t));
+    
+    return ESP_OK;
+}
+
+static esp_err_t blinker_device_wifi_init(void)
+{
+    esp_err_t err = ESP_FAIL;
+    wifi_config_t wifi_cfg = { 0 };
+
+    err = blinker_wifi_init();
+    err = blinker_wifi_get_config(&wifi_cfg);
+    err = blinker_wifi_start(&wifi_cfg);
+
+    return err;
+}
+
 esp_err_t blinker_init(void)
 {
     esp_err_t err = ESP_FAIL;
-
-    // blinker_mqtt_config_t mqtt_config = {0};
 
     data_parse_mutex = xSemaphoreCreateMutex();
 
@@ -1510,7 +1571,7 @@ esp_err_t blinker_init(void)
 #elif defined(CONFIG_BUTTON_RESET_TYPE)
     err = blinker_button_reset_init();
 #endif
-    err = blinker_wifi_init();
+    err = blinker_device_wifi_init();
 
     blinker_timesync_start();
     

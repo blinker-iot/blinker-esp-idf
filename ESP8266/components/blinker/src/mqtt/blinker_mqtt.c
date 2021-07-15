@@ -42,6 +42,13 @@ const char *blinker_mqtt_devicename(void)
     return mqtt_data->config->devicename;
 }
 
+const char *blinker_mqtt_token(void)
+{
+    if (!mqtt_data) return NULL;
+
+    return mqtt_data->config->password;
+}
+
 const char *blinker_mqtt_uuid(void)
 {
     if (!mqtt_data) return NULL;

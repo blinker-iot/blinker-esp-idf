@@ -2,6 +2,7 @@ set(include_dirs include)
 set(srcs 
     "src/api/blinker_api.c"
     "src/mqtt/blinker_mqtt.c"
+    "src/provisioning/blinker_prov_apconfig.c"
     "src/provisioning/blinker_prov_smartconfig.c"
     "src/provisioning/blinker_wifi.c"
     "src/utils/blinker_button.c"

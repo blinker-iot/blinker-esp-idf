@@ -33,6 +33,8 @@ blinker_mqtt_broker_t blinker_mqtt_broker(void);
 
 const char *blinker_mqtt_devicename(void);
 
+const char *blinker_mqtt_token(void);
+
 const char *blinker_mqtt_uuid(void);
 
 const char *blinker_mqtt_product_key(void);

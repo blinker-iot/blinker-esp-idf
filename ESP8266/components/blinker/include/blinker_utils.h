@@ -23,8 +23,6 @@ int blinker_reboot_unbroken_count(void);
 
 int blinker_reboot_total_count(void);
 
-esp_err_t blinker_websocker_server_init(void);
-
 #ifdef __cplusplus
 }
 #endif

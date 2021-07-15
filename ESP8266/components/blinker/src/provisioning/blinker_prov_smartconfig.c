@@ -28,16 +28,16 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         esp_wifi_connect();
         // xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
-        wifi_event_sta_disconnected_t *disconnected = (wifi_event_sta_disconnected_t*) event_data;
-        ESP_LOGE(TAG, "Disconnect reason : %d", disconnected->reason);
-        if(disconnected->reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT){
-            ESP_LOGE(TAG, "wrong password, restart smartconfig");
-            esp_wifi_disconnect();
-            blinker_prov_smartconfig_stop();
-            vTaskDelay(10);
-            blinker_prov_smartconfig_start();
-            return;
-        }
+        // wifi_event_sta_disconnected_t *disconnected = (wifi_event_sta_disconnected_t*) event_data;
+        // ESP_LOGE(TAG, "Disconnect reason : %d", disconnected->reason);
+        // if(disconnected->reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT){
+        //     ESP_LOGE(TAG, "wrong password, need reset device");
+        //     // esp_wifi_disconnect();
+        //     // blinker_prov_smartconfig_stop();
+        //     // vTaskDelay(10);
+        //     // blinker_prov_smartconfig_start();
+        //     // return;
+        // }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "smartconfig connected, got ip:%s",
@@ -73,10 +73,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "RVD_DATA:%s", rvd_data);
         }
 
-        ESP_ERROR_CHECK(esp_wifi_disconnect());
+        // ESP_ERROR_CHECK(esp_wifi_disconnect());
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
         ESP_ERROR_CHECK(esp_wifi_connect());
-        
         xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_SEND_ACK_DONE) {
         // xEventGroupSetBits(s_wifi_event_group, ESPTOUCH_DONE_BIT);

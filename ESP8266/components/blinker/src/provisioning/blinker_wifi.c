@@ -10,7 +10,6 @@
 
 #include "blinker_wifi.h"
 #include "blinker_storage.h"
-#include "blinker_prov_smartconfig.h"
 
 static const char* TAG = "blinker_wifi";
 static const int CONNECTED_BIT = BIT0;
@@ -23,7 +22,13 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         esp_wifi_connect();
-        // ESP_LOGI(TAG,"connect to the AP fail");
+        
+        wifi_event_sta_disconnected_t *disconnected = (wifi_event_sta_disconnected_t*) event_data;
+        ESP_LOGE(TAG, "Disconnect reason : %d", disconnected->reason);
+        if(disconnected->reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT){
+            ESP_LOGE(TAG, "wrong password");
+            vTaskDelay(pdMS_TO_TICKS(2000));
+        }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:%s",
@@ -32,7 +37,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-static esp_err_t blinker_wifi_start(const wifi_config_t *wifi_config)
+esp_err_t blinker_wifi_start(const wifi_config_t *wifi_config)
 {
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, (wifi_config_t *)wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -41,39 +46,6 @@ static esp_err_t blinker_wifi_start(const wifi_config_t *wifi_config)
                         pdFALSE,
                         pdFALSE,
                         portMAX_DELAY);
-    return ESP_OK;
-}
-
-static esp_err_t blinker_wifi_get_config(wifi_config_t *wifi_config)
-{
-    if (blinker_storage_get("wifi_config", wifi_config, sizeof(wifi_config_t)) == ESP_OK) {
-#if defined CONFIG_BLINKER_DEFAULT_CONFIG
-        if (!strcmp((char *)wifi_config->sta.ssid, CONFIG_BLINKER_WIFI_SSID)) {
-            return ESP_OK;
-        }
-#else
-        return ESP_OK;
-#endif
-    }
-
-    esp_wifi_restore();
-
-#if defined CONFIG_BLINKER_DEFAULT_CONFIG
-    wifi_config_t wifi_cfg = {
-        .sta = {
-            .ssid = CONFIG_BLINKER_WIFI_SSID,
-            .password = CONFIG_BLINKER_WIFI_PASSWORD
-        },
-    };
-
-    blinker_wifi_start(&wifi_cfg);
-#elif defined CONFIG_BLINKER_SMART_CONFIG
-    blinker_prov_smartconfig_init();
-#endif
-
-    esp_wifi_get_config(ESP_IF_WIFI_STA, wifi_config);
-    blinker_storage_set("wifi_config", wifi_config, sizeof(wifi_config_t));
-
     return ESP_OK;
 }
 
@@ -105,10 +77,6 @@ esp_err_t blinker_wifi_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-
-    wifi_config_t wifi_cfg = {0};
-    blinker_wifi_get_config(&wifi_cfg);
-    blinker_wifi_start(&wifi_cfg);
 
     return ESP_OK;
 }

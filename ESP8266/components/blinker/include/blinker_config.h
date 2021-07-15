@@ -167,13 +167,21 @@ extern "C"
 
 #define BLINKER_CMD_TIME                "time"
 
+#define BLINKER_CMD_SSID                "ssid"
+
+#define BLINKER_CMD_PASSWORD            "pswd"
+
 #if defined(CONFIG_BLINKER_WITH_SSL)
 
 #define BLINKER_PROTOCOL_MQTT           "mqtts"
 
+#define BLINKER_PROTPCOL_HTTP           "https"
+
 #else
 
 #define BLINKER_PROTOCOL_MQTT           "mqtt"
+
+#define BLINKER_PROTPCOL_HTTP           "http"
 
 #endif
 
