@@ -467,6 +467,7 @@ esp_err_t blinker_aligenie_handler_register(blinker_va_cb_t cb)
     return ESP_OK;
 }
 
+#ifndef CONFIG_BLINKER_ALIGENIE_NONE
 static void blinker_aligenie_init(void)
 {
     if (va_ali == NULL) {
@@ -479,6 +480,7 @@ static void blinker_aligenie_init(void)
     }
 
     blinker_va_param_add(va_ali, BLINKER_CMD_POWER_STATE,       BLINKER_PARAM_POWER_STATE,     BLINKER_VAL_TYPE_STRING);
+#if defined CONFIG_BLINKER_ALIGENIE_LIGHT
     blinker_va_param_add(va_ali, BLINKER_CMD_COLOR_,            BLINKER_PARAM_COLOR,           BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_ali, BLINKER_CMD_MODE,              BLINKER_PARAM_MODE,            BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_ali, BLINKER_CMD_COLOR_TEMP,        BLINKER_PARAM_COLOR_TEMP,      BLINKER_VAL_TYPE_INT);
@@ -487,16 +489,23 @@ static void blinker_aligenie_init(void)
     blinker_va_param_add(va_ali, BLINKER_CMD_BRIGHTNESS,        BLINKER_PARAM_BRIGHTNESS,      BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_ali, BLINKER_CMD_BRIGHTNESS_UP,     BLINKER_PARAM_BRIGHTNESS_UP,   BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_ali, BLINKER_CMD_BRIGHTNESS_DOWN,   BLINKER_PARAM_BRIGHTNESS_DOWN, BLINKER_VAL_TYPE_INT);
-    blinker_va_param_add(va_ali, BLINKER_CMD_HSTATE,            BLINKER_PARAM_HSWING,          BLINKER_VAL_TYPE_STRING);
-    blinker_va_param_add(va_ali, BLINKER_CMD_VSTATE,            BLINKER_PARAM_VSWING,          BLINKER_VAL_TYPE_STRING);
+#elif defined CONFIG_BLINKER_ALIGENIE_AIR_CONDITION
     blinker_va_param_add(va_ali, BLINKER_CMD_TEMP,              BLINKER_PARAM_TEMP,            BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_ali, BLINKER_CMD_TEMP_UP,           BLINKER_PARAM_TEMP_UP,         BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_ali, BLINKER_CMD_TEMP_DOWN,         BLINKER_PARAM_TEMP_DOWN,       BLINKER_VAL_TYPE_INT);
-    blinker_va_param_add(va_ali, BLINKER_CMD_HUMI,              BLINKER_PARAM_HUMI,            BLINKER_VAL_TYPE_INT);
+    // blinker_va_param_add(va_ali, BLINKER_CMD_HUMI,              BLINKER_PARAM_HUMI,            BLINKER_VAL_TYPE_INT);
+#endif
+
+#if defined(CONFIG_BLINKER_ALIGENIE_AIR_CONDITION) || defined(CONFIG_BLINKER_ALIGENIE_FAN)
+    blinker_va_param_add(va_ali, BLINKER_CMD_MODE,              BLINKER_PARAM_MODE,            BLINKER_VAL_TYPE_STRING);
+    blinker_va_param_add(va_ali, BLINKER_CMD_HSTATE,            BLINKER_PARAM_HSWING,          BLINKER_VAL_TYPE_STRING);
+    blinker_va_param_add(va_ali, BLINKER_CMD_VSTATE,            BLINKER_PARAM_VSWING,          BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_ali, BLINKER_CMD_LEVEL,             BLINKER_PARAM_LEVEL,           BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_ali, BLINKER_CMD_LEVEL_UP,          BLINKER_PARAM_LEVEL_UP,        BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_ali, BLINKER_CMD_LEVEL_DOWN,        BLINKER_PARAM_LEVEL_DOWN,      BLINKER_VAL_TYPE_INT);
+#endif
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -625,6 +634,7 @@ esp_err_t blinker_dueros_handler_register(blinker_va_cb_t cb)
     return ESP_OK;
 }
 
+#ifndef CONFIG_BLINKER_DUEROS_NONE
 static void blinker_dueros_init(void)
 {
     if (va_duer == NULL) {
@@ -637,6 +647,7 @@ static void blinker_dueros_init(void)
     }
 
     blinker_va_param_add(va_duer, BLINKER_CMD_POWER_STATE,       BLINKER_PARAM_POWER_STATE,     BLINKER_VAL_TYPE_STRING);
+#if defined CONFIG_BLINKER_DUEROS_LIGHT
     blinker_va_param_add(va_duer, BLINKER_CMD_COLOR_,            BLINKER_PARAM_COLOR,           BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_duer, BLINKER_CMD_MODE,              BLINKER_PARAM_MODE,            BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_duer, BLINKER_CMD_COLOR_TEMP,        BLINKER_PARAM_COLOR_TEMP,      BLINKER_VAL_TYPE_INT);
@@ -645,14 +656,21 @@ static void blinker_dueros_init(void)
     blinker_va_param_add(va_duer, BLINKER_CMD_BRIGHTNESS,        BLINKER_PARAM_BRIGHTNESS,      BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_duer, BLINKER_CMD_BRIGHTNESS_UP,     BLINKER_PARAM_BRIGHTNESS_UP,   BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_duer, BLINKER_CMD_BRIGHTNESS_DOWN,   BLINKER_PARAM_BRIGHTNESS_DOWN, BLINKER_VAL_TYPE_INT);
+#elif defined CONFIG_BLINKER_DUEROS_AIR_CONDITION
     blinker_va_param_add(va_duer, BLINKER_CMD_TEMP,              BLINKER_PARAM_TEMP,            BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_duer, BLINKER_CMD_TEMP_UP,           BLINKER_PARAM_TEMP_UP,         BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_duer, BLINKER_CMD_TEMP_DOWN,         BLINKER_PARAM_TEMP_DOWN,       BLINKER_VAL_TYPE_INT);
-    blinker_va_param_add(va_duer, BLINKER_CMD_HUMI,              BLINKER_PARAM_HUMI,            BLINKER_VAL_TYPE_INT);
+    // blinker_va_param_add(va_duer, BLINKER_CMD_HUMI,              BLINKER_PARAM_HUMI,            BLINKER_VAL_TYPE_INT);
+#endif
+
+#if defined(CONFIG_BLINKER_DUEROS_AIR_CONDITION) || defined(CONFIG_BLINKER_DUEROS_FAN)
+    blinker_va_param_add(va_duer, BLINKER_CMD_MODE,              BLINKER_PARAM_MODE,            BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_duer, BLINKER_CMD_LEVEL,             BLINKER_PARAM_LEVEL,           BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_duer, BLINKER_CMD_LEVEL_UP,          BLINKER_PARAM_LEVEL_UP,        BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_duer, BLINKER_CMD_LEVEL_DOWN,        BLINKER_PARAM_LEVEL_DOWN,      BLINKER_VAL_TYPE_INT);
+#endif
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -771,6 +789,7 @@ esp_err_t blinker_miot_handler_register(blinker_va_cb_t cb)
     return ESP_OK;
 }
 
+#ifndef CONFIG_BLINKER_MIOT_NONE
 static void blinker_miot_init(void)
 {
     if (va_miot == NULL) {
@@ -783,10 +802,12 @@ static void blinker_miot_init(void)
     }
 
     blinker_va_param_add(va_miot, BLINKER_CMD_POWER_STATE, BLINKER_PARAM_POWER_STATE, BLINKER_VAL_TYPE_STRING);
+#if defined CONFIG_BLINKER_MIOT_LIGHT
     blinker_va_param_add(va_miot, BLINKER_CMD_COLOR_,      BLINKER_PARAM_COLOR,       BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_miot, BLINKER_CMD_MODE,        BLINKER_PARAM_MODE,        BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_miot, BLINKER_CMD_COLOR_TEMP,  BLINKER_PARAM_COLOR_TEMP,  BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_miot, BLINKER_CMD_BRIGHTNESS,  BLINKER_PARAM_BRIGHTNESS,  BLINKER_VAL_TYPE_INT);
+#elif defined CONFIG_BLINKER_MIOT_AIR_CONDITION
     blinker_va_param_add(va_miot, BLINKER_CMD_ECO,         BLINKER_PARAM_MODE_STATE,  BLINKER_VAL_TYPE_STRING_STRING);
     blinker_va_param_add(va_miot, BLINKER_CMD_ANION,       BLINKER_PARAM_MODE_STATE,  BLINKER_VAL_TYPE_STRING_STRING);
     blinker_va_param_add(va_miot, BLINKER_CMD_HEATER,      BLINKER_PARAM_MODE_STATE,  BLINKER_VAL_TYPE_STRING_STRING);
@@ -795,12 +816,17 @@ static void blinker_miot_init(void)
     blinker_va_param_add(va_miot, BLINKER_CMD_SOFT,        BLINKER_PARAM_MODE_STATE,  BLINKER_VAL_TYPE_STRING_STRING);
     blinker_va_param_add(va_miot, BLINKER_CMD_UV,          BLINKER_PARAM_MODE_STATE,  BLINKER_VAL_TYPE_STRING_STRING);
     blinker_va_param_add(va_miot, BLINKER_CMD_UNSB,        BLINKER_PARAM_MODE_STATE,  BLINKER_VAL_TYPE_STRING_STRING);
+    blinker_va_param_add(va_miot, BLINKER_CMD_TEMP,        BLINKER_PARAM_TEMP,        BLINKER_VAL_TYPE_INT);
+    // blinker_va_param_add(va_miot, BLINKER_CMD_HUMI,        BLINKER_PARAM_HUMI,        BLINKER_VAL_TYPE_INT);
+#endif
+
+#if defined(CONFIG_BLINKER_MIOT_AIR_CONDITION) || defined(CONFIG_BLINKER_MIOT_FAN)
     blinker_va_param_add(va_miot, BLINKER_CMD_HSTATE,      BLINKER_PARAM_HSWING,      BLINKER_VAL_TYPE_STRING);
     blinker_va_param_add(va_miot, BLINKER_CMD_VSTATE,      BLINKER_PARAM_VSWING,      BLINKER_VAL_TYPE_STRING);
-    blinker_va_param_add(va_miot, BLINKER_CMD_TEMP,        BLINKER_PARAM_TEMP,        BLINKER_VAL_TYPE_INT);
-    blinker_va_param_add(va_miot, BLINKER_CMD_HUMI,        BLINKER_PARAM_HUMI,        BLINKER_VAL_TYPE_INT);
     blinker_va_param_add(va_miot, BLINKER_CMD_LEVEL,       BLINKER_PARAM_LEVEL,       BLINKER_VAL_TYPE_INT);
+#endif
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -1412,7 +1438,7 @@ static void blinker_http_heart_beat(void *timer)
     BLINKER_FREE(payload);
     BLINKER_FREE(url);
 }
-
+#if defined(CONFIG_BUTTON_RESET_TYPE)
 static void blinker_button_reset_cb(void *arg)
 {
     blinker_storage_erase(CONFIG_BLINKER_NVS_NAMESPACE);
@@ -1428,7 +1454,7 @@ static esp_err_t blinker_button_reset_init(void)
 
     return err;
 }
-
+#elif defined(CONFIG_REBOOT_RESET_TYPE)
 static esp_err_t blinker_reboot_reset_check(void)
 {
     if (blinker_reboot_unbroken_count() >= CONFIG_BLINKER_REBOOT_UNBROKEN_FALLBACK_COUNT_RESET) {
@@ -1437,6 +1463,7 @@ static esp_err_t blinker_reboot_reset_check(void)
 
     return ESP_OK;
 }
+#endif
 
 static void blinker_device_register_task(void *arg)
 {
