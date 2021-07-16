@@ -73,6 +73,8 @@ extern "C"
 
 #define BLINKER_CMD_VERSION             "version"
 
+#define BLINKER_CMD_BUILTIN_SWITCH      "switch"
+
 #define BLINKER_CMD_SWITCH              "swi"
 
 #define BLINKER_CMD_ICON                "ico"

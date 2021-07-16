@@ -12,7 +12,6 @@
 
 #include "blinker_api.h"
 #include "blinker_button.h"
-#include "blinker_config.h"
 #include "blinker_http.h"
 #include "blinker_mqtt.h"
 #include "blinker_prov_apconfig.h"
@@ -20,6 +19,31 @@
 #include "blinker_storage.h"
 #include "blinker_wifi.h"
 #include "blinker_ws.h"
+
+typedef struct blinker_widget_data {
+    char *key;
+    blinker_widget_type_t type;
+    blinker_widget_cb_t   cb;
+    SLIST_ENTRY(blinker_widget_data) next;
+} blinker_widget_data_t;
+
+typedef enum {
+    BLINKER_VAL_TYPE_INT = 0,
+    BLINKER_VAL_TYPE_STRING,
+    BLINKER_VAL_TYPE_STRING_STRING,
+} blinker_va_param_val_type_t;
+
+typedef struct blinker_va_param {
+    char *key;
+    blinker_va_param_type_t     type;
+    blinker_va_param_val_type_t val_type;
+    SLIST_ENTRY(blinker_va_param) next;
+} blinker_va_param_t;
+
+typedef struct {
+    blinker_va_cb_t cb;
+    SLIST_HEAD(va_list_, blinker_va_param) va_param_list;
+} blinker_va_data_t;
 
 typedef enum {
     BLINKER_DATA_FROM_WS = 0,
@@ -35,9 +59,9 @@ typedef enum {
 } blinker_event_t;
 
 typedef enum {
-    BLINKER_HTTP_HEART_BEAT = 0,
-    BLINKER_HTTP_WEATHER,
-} blinker_device_http_type_t;
+    BLINKER_HTTP_METHOD_GET = 0,
+    BLINKER_HTTP_METHOD_POST,
+} blinker_device_http_method_t;
 
 typedef struct {
     char *key;
@@ -62,17 +86,54 @@ static blinker_va_data_t *va_miot           = NULL;
 static const int REGISTERED_BIT             = BIT0;
 static EventGroupHandle_t b_register_group  = NULL;
 #if defined CONFIG_BLINKER_AP_CONFIG
-static const int AP_DONE_BIT                = BIT0;
+static const int APCONFIG_DONE_BIT          = BIT0;
 static EventGroupHandle_t b_apconfig_group  = NULL;
 #endif
+static blinker_void_cb_t heart_beat_cb      = NULL;
+static blinker_data_cb_t extra_data_cb      = NULL;
 
 static SLIST_HEAD(widget_list_, blinker_widget_data) blinker_widget_list;
-static void blinker_device_http(const char *url, const char *msg, char *payload, const int payload_len, blinker_device_http_type_t type);
+static void blinker_device_print(const char *key, const char *value, bool is_raw);
+static esp_err_t blinker_device_http(const char *url, const char *msg, char *payload, int payload_len, blinker_device_http_method_t type);
 
 /////////////////////////////////////////////////////////////////////////
 
+esp_err_t blinker_data_handler(blinker_data_cb_t cb)
+{
+    if (extra_data_cb == NULL) {
+        extra_data_cb = cb;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t blinker_heart_beat_handler(blinker_void_cb_t cb)
+{
+    if (heart_beat_cb == NULL) {
+        heart_beat_cb = cb;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t blinker_builtin_switch_handler(blinker_widget_cb_t cb)
+{
+    blinker_widget_add(BLINKER_CMD_BUILTIN_SWITCH, BLINKER_SWITCH, cb);
+
+    return ESP_OK;
+}
+
+esp_err_t blinker_builtin_switch_state(const char *state)
+{
+    blinker_device_print(BLINKER_CMD_BUILTIN_SWITCH, state, false);
+
+    return ESP_OK;
+}
+
 esp_err_t blinker_weather(char **payload, const int city)
 {
+    esp_err_t err = ESP_FAIL;
+
     *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, sizeof(char));
     char *url = NULL;
 
@@ -86,14 +147,247 @@ esp_err_t blinker_weather(char **payload, const int city)
     if (!url || !*payload) {
         BLINKER_FREE(*payload);
         BLINKER_FREE(url);
-        return ESP_FAIL;
+        return err;
     }
 
-    blinker_device_http(url, "", *payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, BLINKER_HTTP_WEATHER);
+    err = blinker_device_http(url, "", *payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, BLINKER_HTTP_METHOD_GET);
 
     BLINKER_FREE(url);
 
-    return ESP_OK;
+    return err;
+}
+
+esp_err_t blinker_weather_forecast(char **payload, const int city)
+{
+    esp_err_t err = ESP_FAIL;
+
+    *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, sizeof(char));
+    char *url = NULL;
+
+    asprintf(&url, "%s://%s/api/v3/forecast?deviceName=%s&key=%s&code=%d",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
+            blinker_mqtt_devicename(),
+            blinker_mqtt_token(),
+            city);
+
+    if (!url || !*payload) {
+        BLINKER_FREE(*payload);
+        BLINKER_FREE(url);
+        return err;
+    }
+
+    err = blinker_device_http(url, "", *payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, BLINKER_HTTP_METHOD_GET);
+
+    BLINKER_FREE(url);
+
+    return err;
+}
+
+esp_err_t blinker_air(char **payload, const int city)
+{
+    esp_err_t err = ESP_FAIL;
+
+    *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, sizeof(char));
+    char *url = NULL;
+
+    asprintf(&url, "%s://%s/api/v3/air?deviceName=%s&key=%s&code=%d",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
+            blinker_mqtt_devicename(),
+            blinker_mqtt_token(),
+            city);
+
+    if (!url || !*payload) {
+        BLINKER_FREE(*payload);
+        BLINKER_FREE(url);
+        return err;
+    }
+
+    err = blinker_device_http(url, "", *payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/2, BLINKER_HTTP_METHOD_GET);
+
+    BLINKER_FREE(url);
+
+    return err;
+}
+
+esp_err_t blinker_sms(const char *msg)
+{
+    esp_err_t err = ESP_FAIL;
+
+    char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, sizeof(char));
+    char *post_msg = NULL;
+    char *url = NULL;
+
+    asprintf(&post_msg, "{\"deviceName\":\"%s\",\"key\":\"%s\",\"msg\":\"%s\",\"cel\":\"\"}",
+            blinker_mqtt_devicename(),
+            blinker_mqtt_authkey(),
+            msg);
+
+    asprintf(&url, "%s://%s/api/v1/user/device/sms",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST);
+
+    if (!url || !post_msg || !payload) {
+        BLINKER_FREE(payload);
+        BLINKER_FREE(post_msg);
+        BLINKER_FREE(url);
+        return err;
+    }
+
+    err = blinker_device_http(url, post_msg, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, BLINKER_HTTP_METHOD_POST);
+    
+    BLINKER_FREE(payload);
+    BLINKER_FREE(post_msg);
+    BLINKER_FREE(url);
+
+    return err;
+}
+
+esp_err_t blinker_push(const char *msg)
+{
+    esp_err_t err = ESP_FAIL;
+
+    char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, sizeof(char));
+    char *post_msg = NULL;
+    char *url = NULL;
+
+    asprintf(&post_msg, "{\"deviceName\":\"%s\",\"key\":\"%s\",\"msg\":\"%s\",\"receivers\":\"\"}",
+            blinker_mqtt_devicename(),
+            blinker_mqtt_authkey(),
+            msg);
+
+    asprintf(&url, "%s://%s/api/v1/user/device/push",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST);
+
+    if (!url || !post_msg || !payload) {
+        BLINKER_FREE(payload);
+        BLINKER_FREE(post_msg);
+        BLINKER_FREE(url);
+        return err;
+    }
+
+    err = blinker_device_http(url, post_msg, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, BLINKER_HTTP_METHOD_POST);
+    
+    BLINKER_FREE(payload);
+    BLINKER_FREE(post_msg);
+    BLINKER_FREE(url);
+
+    return err;
+}
+
+esp_err_t blinker_wechat(const char *msg)
+{
+    esp_err_t err = ESP_FAIL;
+
+    char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, sizeof(char));
+    char *post_msg = NULL;
+    char *url = NULL;
+
+    asprintf(&post_msg, "{\"deviceName\":\"%s\",\"key\":\"%s\",\"msg\":\"%s\"}",
+            blinker_mqtt_devicename(),
+            blinker_mqtt_authkey(),
+            msg);
+
+    asprintf(&url, "%s://%s/api/v1/user/device/wxMsg/",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST);
+
+    if (!url || !post_msg || !payload) {
+        BLINKER_FREE(payload);
+        BLINKER_FREE(post_msg);
+        BLINKER_FREE(url);
+        return err;
+    }
+
+    err = blinker_device_http(url, post_msg, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, BLINKER_HTTP_METHOD_POST);
+    
+    BLINKER_FREE(payload);
+    BLINKER_FREE(post_msg);
+    BLINKER_FREE(url);
+
+    return err;
+}
+
+esp_err_t blinker_wechat_template(const char *title, const char *state, const char *msg)
+{
+    esp_err_t err = ESP_FAIL;
+
+    char *payload = calloc(1, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4);
+    char *post_msg = NULL;
+    char *url = NULL;
+
+    asprintf(&post_msg, "{\"deviceName\":\"%s\",\"key\":\"%s\",\"title\":\"%s\",\"state\":\"%s\",\"msg\":\"%s\",\"receivers\":\"\"}",
+            blinker_mqtt_devicename(),
+            blinker_mqtt_authkey(),
+            title,
+            state,
+            msg);
+
+    asprintf(&url, "%s://%s/api/v1/user/device/wxMsg/",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST);
+
+    if (!url || !post_msg || !payload) {
+        BLINKER_FREE(payload);
+        BLINKER_FREE(post_msg);
+        BLINKER_FREE(url);
+        return err;
+    }
+
+    // esp_http_client_config_t config = {
+    //     .url = "http://iot.diandeng.tech/api/v1/user/device/diy/auth?authKey=a3ed8e406003",
+    // };
+    // esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    // err = esp_http_client_perform(client);
+    // if (err == ESP_OK) {
+    //     ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %d",
+    //             esp_http_client_get_status_code(client),
+    //             esp_http_client_get_content_length(client));
+    // } else {
+    //     ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
+    // }
+    // esp_http_client_read_response(client, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4);
+    // ESP_LOGE(TAG, "HTTP GET payload: %s", payload);
+
+    // memset(payload, '\0', CONFIG_BLINKER_HTTP_BUFFER_SIZE/4);
+    // // ESP_LOG_BUFFER_HEX(TAG, local_response_buffer, strlen(local_response_buffer));
+
+    
+    // const char *post_data = "{\"field1\":\"value1\"}";
+    // esp_http_client_set_url(client, url);
+    // esp_http_client_set_method(client, HTTP_METHOD_POST);
+    // esp_http_client_set_header(client, "Content-Type", "application/json");
+    // err = esp_http_client_open(client, strlen(post_msg));
+    // if (err != ESP_OK) {
+    //     ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+    // } else {
+    //     int wlen = esp_http_client_write(client, post_msg, strlen(post_msg));
+    //     if (wlen < 0) {
+    //         ESP_LOGE(TAG, "Write failed");
+    //     }
+    //     int data_read = esp_http_client_read_response(client, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4);
+    //     if (data_read >= 0) {
+    //         ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %d",
+    //         esp_http_client_get_status_code(client),
+    //         esp_http_client_get_content_length(client));
+    //         ESP_LOG_BUFFER_HEX(TAG, payload, strlen(payload));
+    //     } else {
+    //         ESP_LOGE(TAG, "Failed to read response");
+    //     }
+    // }
+    // esp_http_client_cleanup(client);
+    // ESP_LOGE(TAG, "HTTP GET payload: %s", payload);
+
+    err = blinker_device_http(url, post_msg, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, BLINKER_HTTP_METHOD_POST);
+    
+    BLINKER_FREE(payload);
+    BLINKER_FREE(post_msg);
+    BLINKER_FREE(url);
+
+    return err;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -141,8 +435,10 @@ static void blinker_device_print_raw(cJSON *root, const char *key, const char *v
     cJSON_AddRawToObject(root, key, value);
 }
 
-static void blinker_device_http(const char *url, const char *msg, char *payload, const int payload_len, blinker_device_http_type_t type)
+static esp_err_t blinker_device_http(const char *url, const char *msg, char *payload, int payload_len, blinker_device_http_method_t type)
 {
+    esp_err_t err = ESP_FAIL;
+
     esp_http_client_config_t config = {
         .url = "http://iot.diandeng.tech/",
     };
@@ -153,18 +449,19 @@ static void blinker_device_http(const char *url, const char *msg, char *payload,
 
     switch (type)
     {
-        case BLINKER_HTTP_HEART_BEAT:
-            blinker_http_set_url(client, url);
-            blinker_http_get(client);
-            blinker_http_read_response(client, payload, payload_len);
-            blinker_http_close(client);
+        case BLINKER_HTTP_METHOD_GET:
+            err = blinker_http_set_url(client, url);
+            err = blinker_http_get(client);
+            err = blinker_http_read_response(client, payload, payload_len);
+            err = blinker_http_close(client);
             break;
 
-        case BLINKER_HTTP_WEATHER:
-            blinker_http_set_url(client, url);
-            blinker_http_get(client);
-            blinker_http_read_response(client, payload, payload_len);
-            blinker_http_close(client);
+        case BLINKER_HTTP_METHOD_POST:
+            err = blinker_http_set_url(client, url);
+            err = blinker_http_set_header(client, "Content-Type", "application/json");
+            err = blinker_http_post(client, msg);
+            err = blinker_http_read_response(client, payload, payload_len);
+            err = blinker_http_close(client);
             break;
         
         default:
@@ -172,6 +469,8 @@ static void blinker_device_http(const char *url, const char *msg, char *payload,
     }
 
     ESP_LOGI(TAG, "read response: %s", payload);
+
+    return err;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -275,10 +574,12 @@ static void blinker_va_param_add(blinker_va_data_t *va, const char *param, blink
     }
 }
 
-static void blinker_va_parse(cJSON *data, blinker_va_data_t *va)
+static bool blinker_va_parse(cJSON *data, blinker_va_data_t *va)
 {
+    bool is_parsed = false;
+
     if (va == NULL) {
-        return;
+        return is_parsed;
     }
 
     if (cJSON_HasObjectItem(data, BLINKER_CMD_GET)) {
@@ -288,17 +589,21 @@ static void blinker_va_parse(cJSON *data, blinker_va_data_t *va)
             val.type = BLINKER_PARAM_GET_STATE;
             va->cb(&val);
         }
+
+        is_parsed = true;
     } else if (cJSON_HasObjectItem(data, BLINKER_CMD_SET)) {
         cJSON *set_data = cJSON_GetObjectItem(data, BLINKER_CMD_SET);
 
         if (cJSON_IsNull(set_data)) {
             cJSON_Delete(set_data);
-            return;
+            return is_parsed;
         }
 
         blinker_va_param_t *va_param;
         SLIST_FOREACH(va_param, &va->va_param_list, next) {
             if (cJSON_HasObjectItem(set_data, va_param->key)) {
+                is_parsed = true;
+
                 blinker_va_param_cb_t param_val = {0};
                 cJSON *param_set = cJSON_GetObjectItem(set_data, va_param->key);
 
@@ -355,6 +660,8 @@ static void blinker_va_parse(cJSON *data, blinker_va_data_t *va)
             }
         }
     }
+
+    return is_parsed;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -952,11 +1259,14 @@ esp_err_t blinker_widget_add(const char *key, blinker_widget_type_t type, blinke
     return ESP_OK;
 }
 
-static void blinker_widget_parse(cJSON *data)
+static bool blinker_widget_parse(cJSON *data)
 {
+    bool is_parsed = false;
+
     blinker_widget_data_t *widget;
     SLIST_FOREACH(widget, &blinker_widget_list, next) {
         if (cJSON_HasObjectItem(data, widget->key)) {
+            is_parsed = true;
             blinker_widget_param_val_t param_val = {0};
             cJSON *widget_param = cJSON_GetObjectItem(data, widget->key);
 
@@ -1014,12 +1324,21 @@ static void blinker_widget_parse(cJSON *data)
                     }
                     break;
 
+                case BLINKER_SWITCH:
+                    if (cJSON_IsString(widget_param)) {
+                        param_val.s = widget_param->valuestring;
+                        widget->cb(&param_val);
+                    }
+                    break;
+
                 default:
                     break;
             }
             cJSON_Delete(widget_param);
         }
     }
+
+    return is_parsed;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -1114,25 +1433,27 @@ static void blinker_device_auto_format_task(void *arg)
     }
 }
 
-static void blinker_device_heart_beat(cJSON *data)
+static bool blinker_device_heart_beat(cJSON *data)
 {
     if (strncmp(BLINKER_CMD_STATE, 
-        cJSON_GetObjectItem(data, BLINKER_CMD_GET)->valuestring, 
-        strlen(BLINKER_CMD_STATE)) == 0) {
+                cJSON_GetObjectItem(data, BLINKER_CMD_GET)->valuestring, 
+                strlen(BLINKER_CMD_STATE)) == 0) {
         blinker_device_print(BLINKER_CMD_STATE, BLINKER_CMD_ONLINE, false);
         blinker_device_print(BLINKER_CMD_VERSION, CONFIG_BLINKER_FIRMWARE_VERSION, false);
+
+        if (heart_beat_cb) {
+            heart_beat_cb();
+        }
+
+        return true;
     }
+
+    return false;
 }
 
 static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
 {
     esp_err_t err = ESP_FAIL;
-
-    esp_http_client_config_t config = {
-        .url = "http://iot.diandeng.tech/",
-    };
-
-    esp_http_client_handle_t client = blinker_http_init(&config);
     
     char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE, sizeof(char));
     char *url = NULL;
@@ -1147,12 +1468,13 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
             CONFIG_BLINKER_DUEROS_TYPE,
             CONFIG_BLINKER_MIOT_TYPE);
 
-    ESP_LOGI(TAG, "http connect to: %s", url);
+    if (!url || !payload) {
+        BLINKER_FREE(payload);
+        BLINKER_FREE(url);
+        return err;
+    }
 
-    err = blinker_http_set_url(client, url);
-    err = blinker_http_get(client);
-    err = blinker_http_read_response(client, payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE);
-    err = blinker_http_close(client);
+    blinker_device_http(url, "", payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE, BLINKER_HTTP_METHOD_GET);
 
     BLINKER_FREE(url);
 
@@ -1231,7 +1553,7 @@ static blinker_data_from_type_t blinker_device_user_check(const char *user_name)
     }
 }
 
-static void blinker_websocket_data_callbck(httpd_req_t *req, const char *payload)
+static void blinker_websocket_data_callback(httpd_req_t *req, const char *payload)
 {
     xSemaphoreTake(data_parse_mutex, portMAX_DELAY);
 
@@ -1255,55 +1577,51 @@ static void blinker_websocket_data_callbck(httpd_req_t *req, const char *payload
 
         cJSON_Delete(ws_data);
         xSemaphoreGive(data_parse_mutex);
-        xEventGroupSetBits(b_apconfig_group, AP_DONE_BIT);
+        xEventGroupSetBits(b_apconfig_group, APCONFIG_DONE_BIT);
 
         return;
     }
 #endif
 
-    // if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_DATA))
-    // {
-        if (data_from) {
-            if (data_from->uuid) {
-                BLINKER_FREE(data_from->uuid);
-            }
-            if (data_from->message_id) {
-                BLINKER_FREE(data_from->message_id);
-            }
-            if (data_from->resp_arg) {
-                BLINKER_FREE(data_from->resp_arg->hd);
-                BLINKER_FREE(data_from->resp_arg);
-            }
-            BLINKER_FREE(data_from);
+    if (data_from) {
+        if (data_from->uuid) {
+            BLINKER_FREE(data_from->uuid);
+        }
+        if (data_from->message_id) {
+            BLINKER_FREE(data_from->message_id);
+        }
+        if (data_from->resp_arg) {
+            BLINKER_FREE(data_from->resp_arg->hd);
+            BLINKER_FREE(data_from->resp_arg);
+        }
+        BLINKER_FREE(data_from);
+    }
+
+    data_from = calloc(1, sizeof(blinker_data_from_param_t));
+
+    if (data_from) {
+        data_from->resp_arg = calloc(1, sizeof(async_resp_arg_t));
+        data_from->resp_arg->hd = req->handle;
+        data_from->resp_arg->fd = httpd_req_to_sockfd(req);
+        data_from->type = BLINKER_DATA_FROM_WS;
+
+        bool is_parsed = false;
+
+        if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_GET)) {
+            is_parsed = blinker_device_heart_beat(ws_data);
+        } else {
+            is_parsed = blinker_widget_parse(ws_data);
         }
 
-        data_from = calloc(1, sizeof(blinker_data_from_param_t));
-
-        if (data_from) {
-            data_from->resp_arg = calloc(1, sizeof(async_resp_arg_t));
-            data_from->resp_arg->hd = req->handle;
-            data_from->resp_arg->fd = httpd_req_to_sockfd(req);;
-            // data_from->uuid = strdup(cJSON_GetObjectItem(ws_data, BLINKER_CMD_FROM_DEVICE)->valuestring);
-            data_from->type = BLINKER_DATA_FROM_WS;
-
-            // cJSON *main_data = cJSON_GetObjectItem(ws_data, BLINKER_CMD_DATA);
-            // if (main_data == NULL) {
-            //     BLINKER_FREE(data_from->uuid);
-            //     BLINKER_FREE(data_from);
-            //     cJSON_Delete(main_data);
-            //     cJSON_Delete(ws_data);
-            //     xSemaphoreGive(data_parse_mutex);
-            //     return;
-            // }
-
-            if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_GET)) {
-                blinker_device_heart_beat(ws_data);
-            } else {
-                blinker_widget_parse(ws_data);
+        if (!is_parsed) {
+            if (extra_data_cb) {
+                char *extra_data = cJSON_PrintUnformatted(ws_data);
+                extra_data_cb(extra_data);
+                BLINKER_FREE(extra_data);
             }
-            // cJSON_Delete(main_data);
         }
-    // }
+    }
+    
     cJSON_Delete(ws_data);
 
     xSemaphoreGive(data_parse_mutex);
@@ -1372,36 +1690,46 @@ static void blinker_mqtt_data_callback(const char *topic, size_t topic_len, void
                 ESP_LOGI(TAG, "message_id: %s", data_from->message_id);
             }
 
+            bool is_parsed = false;
+
             switch (data_from->type)
             {
                 case BLINKER_DATA_FROM_USER:
                     if (cJSON_HasObjectItem(main_data, BLINKER_CMD_GET)) {
-                        blinker_device_heart_beat(main_data);
+                        is_parsed = blinker_device_heart_beat(main_data);
                     } else {
-                        blinker_widget_parse(main_data);
+                        is_parsed = blinker_widget_parse(main_data);
                     }
                     break;
 
                 case BLINKER_DATA_FROM_ALIGENIE:
                     if (va_ali != NULL) {
-                        blinker_va_parse(main_data, va_ali);
+                        is_parsed = blinker_va_parse(main_data, va_ali);
                     }
                     break;
 
                 case BLINKER_DATA_FROM_DUEROS:
                     if (va_duer != NULL) {
-                        blinker_va_parse(main_data, va_duer);
+                        is_parsed = blinker_va_parse(main_data, va_duer);
                     }
                     break;
 
                 case BLINKER_DATA_FROM_MIOT:
                     if (va_miot != NULL) {
-                        blinker_va_parse(main_data, va_miot);
+                        is_parsed = blinker_va_parse(main_data, va_miot);
                     }
                     break;
 
                 default:
                     break;
+            }
+
+            if (!is_parsed) {
+                if (extra_data_cb) {
+                    char *extra_data = cJSON_PrintUnformatted(main_data);
+                    extra_data_cb(extra_data);
+                    BLINKER_FREE(extra_data);
+                }
             }
         
             cJSON_Delete(main_data);
@@ -1433,7 +1761,7 @@ static void blinker_http_heart_beat(void *timer)
         return;
     }
 
-    blinker_device_http(url, "", payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, BLINKER_HTTP_HEART_BEAT);
+    blinker_device_http(url, "", payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE/4, BLINKER_HTTP_METHOD_GET);
 
     BLINKER_FREE(payload);
     BLINKER_FREE(url);
@@ -1562,8 +1890,8 @@ static esp_err_t blinker_wifi_get_config(wifi_config_t *wifi_config)
 #elif defined CONFIG_BLINKER_AP_CONFIG
     b_apconfig_group = xEventGroupCreate();
     blinker_prov_apconfig_init();
-    blinker_websocket_server_init(blinker_websocket_data_callbck);
-    xEventGroupWaitBits(b_apconfig_group, AP_DONE_BIT, true, false, portMAX_DELAY);
+    blinker_websocket_server_init(blinker_websocket_data_callback);
+    xEventGroupWaitBits(b_apconfig_group, APCONFIG_DONE_BIT, true, false, portMAX_DELAY);
 #endif
 
     
@@ -1614,7 +1942,7 @@ esp_err_t blinker_init(void)
     blinker_miot_init();
 #endif
 
-    blinker_websocket_server_init(blinker_websocket_data_callbck);
+    blinker_websocket_server_init(blinker_websocket_data_callback);
 
     auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
     xTaskCreate(blinker_device_auto_format_task, 

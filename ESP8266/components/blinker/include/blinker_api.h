@@ -8,6 +8,7 @@ extern "C"
 #endif
 
 #include "cJSON.h"
+#include "blinker_config.h"
 
 typedef enum {
     BLINKER_BUTTON = 0,
@@ -16,6 +17,7 @@ typedef enum {
     BLINKER_RGB,
     BLINKER_SLIDER,
     BLINKER_TAB,
+    BLINKER_SWITCH,
 } blinker_widget_type_t;
 
 typedef struct {
@@ -25,21 +27,6 @@ typedef struct {
     };
     int array[4];
 } blinker_widget_param_val_t;
-
-typedef void (*blinker_widget_cb_t)(const blinker_widget_param_val_t *val);
-
-typedef struct blinker_widget_data {
-    char *key;
-    blinker_widget_type_t type;
-    blinker_widget_cb_t   cb;
-    SLIST_ENTRY(blinker_widget_data) next;
-} blinker_widget_data_t;
-
-typedef enum {
-    BLINKER_VAL_TYPE_INT = 0,
-    BLINKER_VAL_TYPE_STRING,
-    BLINKER_VAL_TYPE_STRING_STRING,
-} blinker_va_param_val_type_t;
 
 typedef enum {
     BLINKER_PARAM_POWER_STATE = 0,
@@ -77,21 +64,32 @@ typedef struct {
     blinker_va_param_type_t type;
 } blinker_va_param_cb_t;
 
-typedef struct blinker_va_param {
-    char *key;
-    blinker_va_param_type_t     type;
-    blinker_va_param_val_type_t val_type;
-    SLIST_ENTRY(blinker_va_param) next;
-} blinker_va_param_t;
-
 typedef void (*blinker_va_cb_t)(const blinker_va_param_cb_t *val);
+typedef void (*blinker_widget_cb_t)(const blinker_widget_param_val_t *val);
+typedef void (*blinker_data_cb_t)(const char *data);
+typedef void (*blinker_void_cb_t)(void);
 
-typedef struct {
-    blinker_va_cb_t cb;
-    SLIST_HEAD(va_list_, blinker_va_param) va_param_list;
-} blinker_va_data_t;
+esp_err_t blinker_data_handler(blinker_data_cb_t cb);
+
+esp_err_t blinker_heart_beat_handler(blinker_void_cb_t cb);
+
+esp_err_t blinker_builtin_switch_handler(blinker_widget_cb_t cb);
+
+esp_err_t blinker_builtin_switch_state(const char *state);
 
 esp_err_t blinker_weather(char **payload, const int city);
+
+esp_err_t blinker_weather_forecast(char **payload, const int city);
+
+esp_err_t blinker_air(char **payload, const int city);
+
+esp_err_t blinker_sms(const char *msg);
+
+esp_err_t blinker_push(const char *msg);
+
+esp_err_t blinker_wechat(const char *msg);
+
+esp_err_t blinker_wechat_template(const char *title, const char *state, const char *msg);
 
 esp_err_t blinker_va_multi_num(cJSON *param, const int num);
  
