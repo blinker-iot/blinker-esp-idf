@@ -66,14 +66,19 @@ typedef struct {
 
 typedef void (*blinker_va_cb_t)(const blinker_va_param_cb_t *val);
 typedef void (*blinker_widget_cb_t)(const blinker_widget_param_val_t *val);
+typedef void (*blinker_json_cb_t)(cJSON *param);
 typedef void (*blinker_data_cb_t)(const char *data);
 typedef void (*blinker_void_cb_t)(void);
 
-esp_err_t blinker_data_handler(blinker_data_cb_t cb);
+esp_err_t blinker_timeslot_data(cJSON *param, const char *key, const double value);
 
-esp_err_t blinker_heart_beat_handler(blinker_void_cb_t cb);
+esp_err_t blinker_timeslot_data_init(const uint16_t interval, const uint8_t times, const blinker_json_cb_t cb);
 
-esp_err_t blinker_builtin_switch_handler(blinker_widget_cb_t cb);
+esp_err_t blinker_data_handler(const blinker_data_cb_t cb);
+
+esp_err_t blinker_heart_beat_handler(const blinker_void_cb_t cb);
+
+esp_err_t blinker_builtin_switch_handler(const blinker_widget_cb_t cb);
 
 esp_err_t blinker_builtin_switch_state(const char *state);
 
@@ -90,6 +95,12 @@ esp_err_t blinker_push(const char *msg);
 esp_err_t blinker_wechat(const char *msg);
 
 esp_err_t blinker_wechat_template(const char *title, const char *state, const char *msg);
+
+esp_err_t blinker_log(const char *msg);
+
+esp_err_t blinker_config_update(const char *msg);
+
+esp_err_t blinker_config_get(char **payload);
 
 esp_err_t blinker_va_multi_num(cJSON *param, const int num);
  
@@ -147,7 +158,7 @@ esp_err_t blinker_dueros_time(cJSON *param, const int time);
 
 esp_err_t blinker_dueros_print(cJSON* param);
 
-esp_err_t blinker_dueros_handler_register(blinker_va_cb_t cb);
+esp_err_t blinker_dueros_handler_register(const blinker_va_cb_t cb);
 
 esp_err_t blinker_miot_power_state(cJSON *param, const char *state);
 
@@ -177,7 +188,7 @@ esp_err_t blinker_miot_vswing(cJSON *param, const char *state);
 
 esp_err_t blinker_miot_print(cJSON* param);
 
-esp_err_t blinker_miot_handler_register(blinker_va_cb_t cb);
+esp_err_t blinker_miot_handler_register(const blinker_va_cb_t cb);
 
 esp_err_t blinker_widget_switch(cJSON *param, const char *state);
 
@@ -205,7 +216,7 @@ esp_err_t blinker_widget_tab_print(const char *key, const int tab0, const int ta
 
 esp_err_t blinker_widget_print(const char *key, cJSON *param);
 
-esp_err_t blinker_widget_add(const char *name, blinker_widget_type_t type, blinker_widget_cb_t cb);
+esp_err_t blinker_widget_add(const char *name, const blinker_widget_type_t type, const blinker_widget_cb_t cb);
 
 esp_err_t blinker_init(void);
 

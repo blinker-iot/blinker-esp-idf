@@ -1,3 +1,11 @@
+/*
+ * @Author: your name
+ * @Date: 2021-07-02 13:32:25
+ * @LastEditTime: 2021-07-21 16:15:07
+ * @LastEditors: Please set LastEditors
+ * @Description: In User Settings Edit
+ * @FilePath: \ESP8266_RTOS_SDK\0524\smart_config\examples\components\blinker\include\blinker_utils.h
+ */
 #pragma once
 
 #include <esp_err.h>
@@ -13,11 +21,17 @@ extern "C" {
         } \
     }
 
+#define BLINKER_TS_NUM(num) data##num
+
 void blinker_log_print_heap(void);
+
+time_t blinker_time(void);
 
 esp_err_t blinker_timesync_start(void);
 
 esp_err_t blinker_mdns_init(const char *host_name);
+
+esp_err_t blinker_mdns_free(void);
 
 int blinker_reboot_unbroken_count(void);
 

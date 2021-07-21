@@ -1,3 +1,11 @@
+/*
+ * @Author: your name
+ * @Date: 2021-07-08 11:47:52
+ * @LastEditTime: 2021-07-20 15:05:43
+ * @LastEditors: Please set LastEditors
+ * @Description: In User Settings Edit
+ * @FilePath: \ESP8266_RTOS_SDK\0524\smart_config\examples\components\blinker\src\utils\blinker_timesync.c
+ */
 #include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
@@ -15,6 +23,14 @@ static const char *TAG        = "blinker_timesync";
 // static const int NTP_DONE_BIT = BIT0;
 static bool g_init_done       = false;
 // static EventGroupHandle_t b_ntp_event_group = NULL;
+
+time_t blinker_time(void)
+{
+    time_t now;
+    time(&now);
+
+    return now;
+}
 
 static bool blinker_timesync_check(void)
 {
@@ -53,7 +69,7 @@ static void blinker_timesync_task(void *arg)
     // xEventGroupSetBits(b_ntp_event_group, NTP_DONE_BIT);
 
     vTaskDelete(NULL);
-} 
+}
 
 esp_err_t blinker_timesync_start(void)
 {

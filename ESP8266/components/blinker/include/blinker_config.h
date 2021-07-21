@@ -21,6 +21,14 @@ extern "C"
 
 #define BLINKER_WEBSOCKET_SERVER_PORT   81
 
+#define BLINKER_MAX_TIME_INTERVAL       600
+
+#define BLINKER_MIN_TIME_INTERVAL       30
+
+#define BLINKER_MAX_TIMES_COUNT         10
+
+#define BLINKER_MIN_TIMES_COUNT         2
+
 #define BLINKER_CMD_DETAIL              "detail"
 
 #define BLINKER_CMD_DEVICE_NAME         "deviceName"

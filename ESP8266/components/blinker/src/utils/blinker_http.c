@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-07-02 12:57:48
- * @LastEditTime: 2021-07-16 17:46:40
+ * @LastEditTime: 2021-07-20 15:31:58
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: \ESP8266_RTOS_SDK\0524\smart_config\examples\components\blinker\src\utils\blinker_http.c
@@ -60,6 +60,8 @@ esp_err_t blinker_http_get(esp_http_client_handle_t client)
 esp_err_t blinker_http_post(esp_http_client_handle_t client, const char *post_data)
 {
     esp_http_client_set_method(client, HTTP_METHOD_POST);
+
+    ESP_LOGI(TAG, "HTTP POST: %s", post_data);
 
     esp_http_client_set_post_field(client, post_data, strlen(post_data));
     esp_err_t err = esp_http_client_perform(client);
