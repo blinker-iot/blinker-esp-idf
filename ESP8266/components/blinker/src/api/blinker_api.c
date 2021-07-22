@@ -90,6 +90,21 @@ typedef struct {
     blinker_data_from_type_t type;
 } blinker_data_from_param_t;
 
+#if defined CONFIG_BLINKER_PRO_ESP
+typedef enum {
+    BLINKER_PRO_DEVICE_AUTH = 0,
+    BLINKER_PRO_DEVICE_CHECK,
+    BLINKER_PRO_DEVICE_WAIT_REGISTER,
+    BLINKER_PRO_DEVICE_REGISTER
+} blinker_pro_device_status_t;
+
+typedef struct {
+    char *uuid;
+} blinker_pro_esp_param_t;
+
+#define BLINKER_PRO_ESP_CHECK_KEY           "pro_check"
+#endif
+
 static const char* TAG                      = "blinker_api";
 static xQueueHandle auto_format_queue       = NULL;
 static SemaphoreHandle_t data_parse_mutex   = NULL;
@@ -106,6 +121,11 @@ static EventGroupHandle_t b_apconfig_group  = NULL;
 static blinker_void_cb_t heart_beat_cb      = NULL;
 static blinker_data_cb_t extra_data_cb      = NULL;
 static blinker_timeslot_param_t *timeslot_p = NULL;
+
+#if defined CONFIG_BLINKER_PRO_ESP
+static bool pro_device_wait_register        = false;
+static bool pro_device_get_register         = false;
+#endif
 
 static SLIST_HEAD(widget_list_, blinker_widget_data) blinker_widget_list;
 static SLIST_HEAD(timeslot_data_list_, blinker_timeslot_param) blinker_timeslot_list;
@@ -140,8 +160,10 @@ static void blinker_timeslot_timer_callback(void *timer)
             cJSON_Delete(data_param);
 
             SLIST_FOREACH(ts_data, &blinker_timeslot_list, next) {
-                cJSON_AddItemToArray(data_array, cJSON_CreateRaw(ts_data->data));
-                BLINKER_FREE(ts_data->data);
+                if (ts_data->data) {
+                    cJSON_AddItemToArray(data_array, cJSON_CreateRaw(ts_data->data));
+                    BLINKER_FREE(ts_data->data);
+                }
             }
             
             char *format_data = cJSON_PrintUnformatted(data_array);
@@ -1643,24 +1665,23 @@ static bool blinker_widget_parse(const cJSON *data)
 
 static void blinker_device_print_to_user(char *data)
 {
-    char *pub_topic = NULL;
-    if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
-        asprintf(&pub_topic, "/%s/%s/s",
-                blinker_mqtt_product_key(),
-                blinker_mqtt_devicename());
-    } else if (blinker_mqtt_broker() == BLINKER_BROKER_BLINKER) {
-        asprintf(&pub_topic, "/device/%s/s",
-                blinker_mqtt_devicename());
-    }
 
     if (data_from && data_from->type == BLINKER_DATA_FROM_WS) {
         strcat(data, "\n");
         blinker_websocket_async_print(data_from->resp_arg, data);
     } else {
+        char *pub_topic = NULL;
+        if (blinker_mqtt_broker() == BLINKER_BROKER_ALIYUN) {
+            asprintf(&pub_topic, "/%s/%s/s",
+                    blinker_mqtt_product_key(),
+                    blinker_mqtt_devicename());
+        } else if (blinker_mqtt_broker() == BLINKER_BROKER_BLINKER) {
+            asprintf(&pub_topic, "/device/%s/s",
+                    blinker_mqtt_devicename());
+        }
         blinker_mqtt_publish(pub_topic, data, strlen(data));
+        BLINKER_FREE(pub_topic);
     }
-
-    BLINKER_FREE(pub_topic);
 }
 
 static void blinker_device_auto_format_task(void *arg)
@@ -1693,6 +1714,7 @@ static void blinker_device_auto_format_task(void *arg)
 
                     BLINKER_FREE(format_data);
                 }
+
                 blinker_log_print_heap();
             }
             continue;
@@ -1749,6 +1771,69 @@ static bool blinker_device_heart_beat(cJSON *data)
     return false;
 }
 
+#if defined CONFIG_BLINKER_PRO_ESP
+static esp_err_t blinker_device_auth(blinker_mqtt_config_t *mqtt_cfg)
+{
+    esp_err_t err = ESP_FAIL;
+
+    char *payload = calloc(CONFIG_BLINKER_HTTP_BUFFER_SIZE, sizeof(char));
+    char *mac_name = calloc(13, sizeof(char));
+    char *url = NULL;
+
+    if (!payload) {
+        return err;
+    }
+
+    if (!mac_name) {
+        BLINKER_FREE(payload);
+        return err;
+    }
+
+    blinker_mac_device_name(mac_name);
+
+    asprintf(&url, "%s://%s/api/v1/user/device/auth/get?deviceType=%s&typeKey=%s&deviceName=%s",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
+            CONFIG_BLINKER_TYPE_KEY,
+            CONFIG_BLINKER_AUTH_KEY,
+            mac_name);
+
+    if (!url) {
+        BLINKER_FREE(payload);
+        BLINKER_FREE(mac_name);
+        return err;
+    }
+
+    blinker_device_http(url, "", payload, CONFIG_BLINKER_HTTP_BUFFER_SIZE, BLINKER_HTTP_METHOD_GET);
+
+    BLINKER_FREE(url);
+    BLINKER_FREE(mac_name);
+
+    ESP_LOGI(TAG, "read response: %s", payload);
+
+    cJSON *root = cJSON_Parse(payload);
+
+    if (!root) {
+        BLINKER_FREE(payload);
+        cJSON_Delete(root);
+        return err;
+    } else {
+        cJSON *detail = cJSON_GetObjectItem(root, BLINKER_CMD_DETAIL);
+        if (detail != NULL && cJSON_HasObjectItem(detail, BLINKER_CMD_AUTHKEY)) {
+            mqtt_cfg->authkey = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_AUTHKEY)->valuestring);
+        }
+        cJSON_Delete(detail);
+
+        err = ESP_OK;
+    }
+
+    BLINKER_FREE(payload);
+    cJSON_Delete(root);
+
+    return err;
+}
+#endif
+
 static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
 {
     esp_err_t err = ESP_FAIL;
@@ -1760,6 +1845,7 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
         return err;
     }
 
+#if defined CONFIG_BLINKER_CUSTOM_ESP
     asprintf(&url, "%s://%s/api/v1/user/device/diy/auth?authKey=%s&protocol=%s&version=%s%s%s%s",
             BLINKER_PROTPCOL_HTTP,
             CONFIG_BLINKER_SERVER_HOST,
@@ -1769,6 +1855,17 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
             CONFIG_BLINKER_ALIGENIE_TYPE,
             CONFIG_BLINKER_DUEROS_TYPE,
             CONFIG_BLINKER_MIOT_TYPE);
+#elif defined CONFIG_BLINKER_PRO_ESP
+    asprintf(&url, "%s://%s/api/v1/user/device/auth?authKey=%s&protocol=%s&version=%s%s%s%s",
+            BLINKER_PROTPCOL_HTTP,
+            CONFIG_BLINKER_SERVER_HOST,
+            mqtt_cfg->authkey,
+            BLINKER_PROTOCOL_MQTT,
+            CONFIG_BLINKER_FIRMWARE_VERSION,
+            CONFIG_BLINKER_ALIGENIE_TYPE,
+            CONFIG_BLINKER_DUEROS_TYPE,
+            CONFIG_BLINKER_MIOT_TYPE);
+#endif
 
     if (!url) {
         BLINKER_FREE(payload);
@@ -1796,7 +1893,9 @@ static esp_err_t blinker_device_register(blinker_mqtt_config_t *mqtt_cfg)
             mqtt_cfg->productkey = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_PRODUCT_KEY)->valuestring);
             mqtt_cfg->uuid       = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_UUID)->valuestring);
             mqtt_cfg->uri        = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_HOST)->valuestring);
+#if defined CONFIG_BLINKER_CUSTOM_ESP
             mqtt_cfg->authkey    = strdup(CONFIG_BLINKER_AUTH_KEY);
+#endif
             mqtt_cfg->port       = atoi(cJSON_GetObjectItem(detail, BLINKER_CMD_PORT)->valuestring);
 
             if (strncmp(cJSON_GetObjectItem(detail, BLINKER_CMD_BROKER)->valuestring, BLINKER_CMD_ALIYUN, strlen(BLINKER_CMD_ALIYUN)) == 0) {
@@ -1866,6 +1965,21 @@ static void blinker_websocket_data_callback(httpd_req_t *req, const char *payloa
         return;
     }
 
+#if defined CONFIG_BLINKER_PRO_ESP
+    if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_REGISTER) && pro_device_wait_register) {
+        if (strcmp(CONFIG_BLINKER_TYPE_KEY, cJSON_GetObjectItem(ws_data, BLINKER_CMD_REGISTER)->valuestring) == 0) {
+            pro_device_get_register = true;
+
+            blinker_websocket_print(req, "{\"message\":\"success\"}\n");
+
+            cJSON_Delete(ws_data);
+            xSemaphoreGive(data_parse_mutex);
+
+            return;
+        }
+    }
+#endif
+
 #if defined CONFIG_BLINKER_AP_CONFIG
     if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_SSID) && b_apconfig_group) {
         wifi_config_t wifi_cfg = {0};
@@ -1905,21 +2019,25 @@ static void blinker_websocket_data_callback(httpd_req_t *req, const char *payloa
         data_from->resp_arg->hd = req->handle;
         data_from->resp_arg->fd = httpd_req_to_sockfd(req);
         data_from->type = BLINKER_DATA_FROM_WS;
+    } else {
+        cJSON_Delete(ws_data);
+        xSemaphoreGive(data_parse_mutex);
+        return;
+    }
 
-        bool is_parsed = false;
+    bool is_parsed = false;
 
-        if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_GET)) {
-            is_parsed = blinker_device_heart_beat(ws_data);
-        } else {
-            is_parsed = blinker_widget_parse(ws_data);
-        }
+    if (cJSON_HasObjectItem(ws_data, BLINKER_CMD_GET)) {
+        is_parsed = blinker_device_heart_beat(ws_data);
+    } else {
+        is_parsed = blinker_widget_parse(ws_data);
+    }
 
-        if (!is_parsed) {
-            if (extra_data_cb) {
-                char *extra_data = cJSON_PrintUnformatted(ws_data);
-                extra_data_cb(extra_data);
-                BLINKER_FREE(extra_data);
-            }
+    if (!is_parsed) {
+        if (extra_data_cb) {
+            char *extra_data = cJSON_PrintUnformatted(ws_data);
+            extra_data_cb(extra_data);
+            BLINKER_FREE(extra_data);
         }
     }
     
@@ -2034,8 +2152,6 @@ static void blinker_mqtt_data_callback(const char *topic, size_t topic_len, void
             }
         
             cJSON_Delete(main_data);
-        } else {
-            BLINKER_FREE(data_from);
         }
     }
 
@@ -2099,6 +2215,7 @@ static esp_err_t blinker_reboot_reset_check(void)
 
 static void blinker_device_register_task(void *arg)
 {
+#if defined CONFIG_BLINKER_CUSTOM_ESP
     esp_err_t err = ESP_FAIL;
     blinker_mqtt_config_t mqtt_config = {0};
 
@@ -2119,8 +2236,74 @@ static void blinker_device_register_task(void *arg)
     }
 
     xEventGroupSetBits(b_register_group, REGISTERED_BIT);
-
     vTaskDelete(NULL);
+#elif defined CONFIG_BLINKER_PRO_ESP
+    esp_err_t err = ESP_FAIL;
+    blinker_mqtt_config_t mqtt_config = {0};
+    blinker_pro_esp_param_t pro_auth  = {0};
+    blinker_pro_device_status_t pro_status = BLINKER_PRO_DEVICE_AUTH;
+    bool task_run = true;
+    char mac_name[13] = {0};
+
+    while(task_run) {
+        switch (pro_status) {
+            case BLINKER_PRO_DEVICE_AUTH:
+                err = blinker_device_auth(&mqtt_config);
+                if (err != ESP_OK) {
+                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL));
+                } else {
+                    pro_status = BLINKER_PRO_DEVICE_CHECK;
+                }
+                break;
+
+            case BLINKER_PRO_DEVICE_CHECK:
+                if (blinker_storage_get(BLINKER_PRO_ESP_CHECK_KEY, &pro_auth, sizeof(blinker_pro_esp_param_t)) != ESP_OK) {
+                    blinker_mac_device_name(mac_name);
+                    blinker_mdns_init(mac_name);
+                    pro_status = BLINKER_PRO_DEVICE_WAIT_REGISTER;
+                    pro_device_wait_register = true;
+
+                    ESP_LOGI(TAG, "BLINKER_PRO_DEVICE_WAIT_REGISTER");
+                } else {
+                    pro_status = BLINKER_PRO_DEVICE_REGISTER;
+                }
+                break;
+            
+            case BLINKER_PRO_DEVICE_WAIT_REGISTER:
+                if (pro_device_get_register) {
+                    pro_device_wait_register = false;
+                    pro_status = BLINKER_PRO_DEVICE_REGISTER;
+                    ESP_LOGI(TAG, "BLINKER_PRO_DEVICE_REGISTER");
+                } else {
+                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL/10));
+                }
+                break;
+
+            case BLINKER_PRO_DEVICE_REGISTER:
+                err = blinker_device_register(&mqtt_config);
+
+                // blinker_device_print(BLINKER_CMD_MESSAGE, BLINKER_CMD_SUCCESS, false);
+
+                if (err != ESP_OK) {
+                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL));
+                } else {
+                    err = blinker_mdns_init(mqtt_config.devicename);
+                    err = blinker_mqtt_init(&mqtt_config);
+
+                    task_run = false;
+                }
+                break;
+            
+            default:
+                break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    xEventGroupSetBits(b_register_group, REGISTERED_BIT);
+    vTaskDelete(NULL);
+#endif
 }
 
 static esp_err_t blinker_device_mqtt_init(void)
@@ -2131,7 +2314,7 @@ static esp_err_t blinker_device_mqtt_init(void)
 
     xTaskCreate(blinker_device_register_task, 
                 "device_register",
-                2 * 1024,
+                BLINKER_REGISTER_TASK_DEEP * 1024,
                 NULL,
                 3,
                 NULL);
@@ -2171,6 +2354,17 @@ static esp_err_t blinker_device_mqtt_init(void)
         BLINKER_FREE(sub_topic);
     }
 
+#if defined CONFIG_BLINKER_PRO_ESP
+    blinker_pro_esp_param_t pro_auth  = {0};
+    
+    if (blinker_storage_get(BLINKER_PRO_ESP_CHECK_KEY, &pro_auth, sizeof(blinker_pro_esp_param_t)) != ESP_OK) {
+        pro_auth.uuid = blinker_mqtt_uuid();
+        ESP_LOGE(TAG, "check storage state: %d", blinker_storage_set(BLINKER_PRO_ESP_CHECK_KEY, &pro_auth, sizeof(blinker_pro_esp_param_t)));
+
+        blinker_device_print(BLINKER_CMD_MESSAGE, BLINKER_CMD_REGISTER_SUCCESS, false);
+    }
+#endif
+
     return err;
 }
 
@@ -2204,7 +2398,7 @@ static esp_err_t blinker_wifi_get_config(wifi_config_t *wifi_config)
 #ifndef CONFIG_BLINKER_DEFAULT_CONFIG
     esp_wifi_get_config(ESP_IF_WIFI_STA, wifi_config);
 #endif
-    blinker_storage_set("wifi_config", wifi_config, sizeof(wifi_config_t));
+    blinker_storage_set(BLINKER_CMD_WIFI_CONFIG, wifi_config, sizeof(wifi_config_t));
     
     return ESP_OK;
 }
@@ -2230,11 +2424,22 @@ esp_err_t blinker_init(void)
 #if defined(CONFIG_REBOOT_RESET_TYPE)
     err = blinker_reboot_reset_check();
 #elif defined(CONFIG_BUTTON_RESET_TYPE)
+    err = blinker_storage_init();
     err = blinker_button_reset_init();
 #endif
     err = blinker_device_wifi_init();
 
     blinker_timesync_start();
+
+    auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
+    xTaskCreate(blinker_device_auto_format_task, 
+                "device_auto_format",
+                2 * 1024,
+                NULL,
+                3,
+                NULL);
+
+    blinker_websocket_server_init(blinker_websocket_data_callback);
     
     err = blinker_device_mqtt_init();
     
@@ -2247,16 +2452,6 @@ esp_err_t blinker_init(void)
 #ifndef CONFIG_BLINKER_MIOT_NONE
     blinker_miot_init();
 #endif
-
-    blinker_websocket_server_init(blinker_websocket_data_callback);
-
-    auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
-    xTaskCreate(blinker_device_auto_format_task, 
-                "device_auto_format",
-                2 * 1024,
-                NULL,
-                3,
-                NULL);
 
     TimerHandle_t b_http_heart_beat_timer = xTimerCreate("http_heart_beat",
                                                         pdMS_TO_TICKS(CONFIG_BLINKER_HTTP_HEART_BEAT_TIME_INTERVAL*BLINKER_MIN_TO_MS),

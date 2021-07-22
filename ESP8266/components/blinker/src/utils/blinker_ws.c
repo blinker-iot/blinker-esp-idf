@@ -52,6 +52,8 @@ static blinker_websocket_data_cb_t ws_cb = NULL;
 
 esp_err_t blinker_websocket_async_print(async_resp_arg_t *arg, const char *payload)
 {
+    ESP_LOGI(TAG, "blinker_websocket_async_print: %s", payload);
+
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
     ws_pkt.payload = (uint8_t *)payload;
@@ -65,6 +67,8 @@ esp_err_t blinker_websocket_async_print(async_resp_arg_t *arg, const char *paylo
 
 esp_err_t blinker_websocket_print(httpd_req_t *req, const char *payload)
 {
+    ESP_LOGI(TAG, "blinker_websocket_print: %s", payload);
+
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
     ws_pkt.payload = (uint8_t *)payload;

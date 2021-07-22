@@ -1,5 +1,24 @@
 menu "Blinker Config"
     menu "Blinker Device Config"
+        choice BLINKER_DEVICE
+            prompt "Blinker Device Type"
+            default BLINKER_CUSTOM_ESP
+            help
+                Blinker Device Type.
+        
+        config BLINKER_CUSTOM_ESP
+            bool "BLINKER_CUSTOM_ESP"
+        config BLINKER_PRO_ESP
+            bool "BLINKER_PRO_ESP"
+        endchoice
+
+        config BLINKER_TYPE_KEY
+            depends on BLINKER_PRO_ESP
+            string "Type Key"
+            default "Your Device Type Key"
+            help
+                Blinker Typekey for Blinker Server to identify device.
+
         config BLINKER_AUTH_KEY
             string "Auth Key"
             default "Your Device Secret Key"
@@ -109,11 +128,12 @@ menu "Blinker Config"
     menu "Blinker Provisioning Config"
         choice BLINKER_PROV_TYPE
             prompt "WiFi Config Type"
-            default BLINKER_DEFAULT_CONFIG
+            default BLINKER_SMART_CONFIG
             help
                 Set WiFi config type.
         
         config BLINKER_DEFAULT_CONFIG
+            depends on BLINKER_CUSTOM_ESP
             bool "DefaultConfig"
         config BLINKER_SMART_CONFIG
             bool "SmartConfig"
@@ -123,6 +143,7 @@ menu "Blinker Config"
         endchoice
 
         menu "Blinker Default Config"
+            depends on BLINKER_CUSTOM_ESP
             depends on BLINKER_DEFAULT_CONFIG
             config BLINKER_WIFI_SSID
                 string "WiFi SSID"

@@ -29,7 +29,28 @@ extern "C"
 
 #define BLINKER_MIN_TIMES_COUNT         2
 
+#if defined CONFIG_BLINKER_CUSTOM_ESP
+
+#define BLINKER_REGISTER_TASK_DEEP      2
+
+#elif defined CONFIG_BLINKER_PRO_ESP
+
+#define BLINKER_REGISTER_TASK_DEEP      3
+#endif
+
 #define BLINKER_CMD_DETAIL              "detail"
+
+#define BLINKER_CMD_AUTHKEY             "authKey"
+
+#define BLINKER_CMD_REGISTER            "register"
+
+#define BLINKER_CMD_MESSAGE             "message"
+
+#define BLINKER_CMD_SUCCESS             "success"
+
+#define BLINKER_CMD_REGISTER_SUCCESS    "Registration successful"
+
+#define BLINKER_CMD_WIFI_CONFIG         "wifi_config"
 
 #define BLINKER_CMD_DEVICE_NAME         "deviceName"
 

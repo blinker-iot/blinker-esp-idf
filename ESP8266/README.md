@@ -18,6 +18,8 @@ idf.py menuconfig
 
 enter Blinker Config  
 
+* set BLINKER DEVICE TYPE
+
 * set BLINKER AUTH KEY  
 
 * set Provisioning Type  

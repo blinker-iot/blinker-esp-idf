@@ -1,11 +1,3 @@
-/*
- * @Author: your name
- * @Date: 2021-07-02 12:57:48
- * @LastEditTime: 2021-07-20 15:31:58
- * @LastEditors: Please set LastEditors
- * @Description: In User Settings Edit
- * @FilePath: \ESP8266_RTOS_SDK\0524\smart_config\examples\components\blinker\src\utils\blinker_http.c
- */
 #include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"

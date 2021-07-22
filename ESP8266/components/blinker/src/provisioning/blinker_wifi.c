@@ -9,6 +9,7 @@
 #include "esp_system.h"
 
 #include "blinker_wifi.h"
+#include "blinker_config.h"
 #include "blinker_storage.h"
 
 static const char* TAG = "blinker_wifi";
@@ -55,7 +56,7 @@ esp_err_t blinker_wifi_reset(void)
 
     err = esp_wifi_restore();
 
-    err = blinker_storage_erase("wifi_config");
+    err = blinker_storage_erase(BLINKER_CMD_WIFI_CONFIG);
 
     return err;
 }
