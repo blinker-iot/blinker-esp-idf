@@ -37,6 +37,7 @@ static const char *TAG = "blinker";
 
 #define BUTTON_1    "btn-abc"
 #define NUM_1       "num-abc"
+#define TAB_1       "tab"
 
 static int count = 0;
 
@@ -59,6 +60,18 @@ void button1_callback(const blinker_widget_param_val_t *val)
     cJSON_Delete(num_param);
 }
 
+static void tab_callback(const blinker_widget_param_val_t *val)
+{
+    ESP_LOGI(TAG, "tab0: %d, 1: %d, 2: %d, 3: %d, 4: %d", \
+                val->i >> 0 & 0x01, \
+                val->i >> 1 & 0x01, \
+                val->i >> 2 & 0x01, \
+                val->i >> 3 & 0x01, \
+                val->i >> 4 & 0x01);
+
+    blinker_widget_tab_print(TAB_1, val->i >> 0 & 0x01, val->i >> 1 & 0x01, val->i >> 2 & 0x01, val->i >> 3 & 0x01, val->i >> 4 & 0x01);
+}
+
 static void data_callback(const char *data)
 {
     ESP_LOGI(TAG, "data: %s", data);
@@ -69,5 +82,6 @@ void app_main()
     blinker_init();
 
     blinker_widget_add(BUTTON_1, BLINKER_BUTTON, button_callback);
+    blinker_widget_add(TAB_1, BLINKER_TAB, tab_callback);
     blinker_data_handler(data_callback);
 }

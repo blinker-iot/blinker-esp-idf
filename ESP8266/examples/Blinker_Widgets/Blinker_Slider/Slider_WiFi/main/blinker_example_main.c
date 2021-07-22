@@ -37,6 +37,7 @@ static const char *TAG = "blinker";
 
 #define BUTTON_1    "btn-abc"
 #define NUM_1       "num-abc"
+#define JOY_1       "joystick"
 
 static int count = 0;
 
@@ -64,10 +65,16 @@ static void data_callback(const char *data)
     ESP_LOGI(TAG, "data: %s", data);
 }
 
+static void joystick_callback(const blinker_widget_param_val_t *val)
+{
+    ESP_LOGI(TAG, "joystick x: %d, y: %d", val->array[0], val->array[1]);
+}
+
 void app_main()
 {
     blinker_init();
 
     blinker_widget_add(BUTTON_1, BLINKER_BUTTON, button_callback);
+    blinker_widget_add(JOY_1, BLINKER_JOYSTICK, joystick_callback);
     blinker_data_handler(data_callback);
 }

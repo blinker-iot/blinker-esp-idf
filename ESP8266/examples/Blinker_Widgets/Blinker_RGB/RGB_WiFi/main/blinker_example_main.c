@@ -37,6 +37,7 @@ static const char *TAG = "blinker";
 
 #define BUTTON_1    "btn-abc"
 #define NUM_1       "num-abc"
+#define RGB_1       "rgb"
 
 static int count = 0;
 
@@ -64,10 +65,18 @@ static void data_callback(const char *data)
     ESP_LOGI(TAG, "data: %s", data);
 }
 
+static void rgb_callback(const blinker_widget_param_val_t *val)
+{
+    ESP_LOGI(TAG, "rgb r: %d, g: %d, b: %d, w: %d", val->array[0], val->array[1], val->array[2], val->array[3]);
+
+    blinker_widget_rgb_print(RGB_1, val->array[0]/2, val->array[1]/2, val->array[2]/2, val->array[3]/3);
+}
+
 void app_main()
 {
     blinker_init();
 
     blinker_widget_add(BUTTON_1, BLINKER_BUTTON, button_callback);
+    blinker_widget_add(RGB_1, BLINKER_RGB, rgb_callback);
     blinker_data_handler(data_callback);
 }
