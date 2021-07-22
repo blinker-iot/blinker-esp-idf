@@ -1541,7 +1541,10 @@ esp_err_t blinker_widget_tab_print(const char *key, const int tab0, const int ta
 {
     char tab_data[6] = {0};
     sprintf(tab_data, "%d%d%d%d%d", tab0, tab1, tab2, tab3, tab4);
-    blinker_device_print(key, tab_data, false);
+    cJSON *param = cJSON_CreateObject();
+    blinker_widget_value_string(param, tab_data);
+    blinker_widget_print(key, param);
+    cJSON_Delete(param);
 
     return ESP_OK;
 }
