@@ -8,9 +8,11 @@ set(srcs
     "src/utils/blinker_button.c"
     "src/utils/blinker_http.c"
     "src/utils/blinker_mdns.c"
+    "src/utils/blinker_reboot.c"
     "src/utils/blinker_storage.c"
     "src/utils/blinker_timesync.c"
-    "src/utils/blinker_utils.c")
+    "src/utils/blinker_utils.c"
+    "src/utils/blinker_ws.c")
 
 set(COMPONENT_REQUIRES "mdns")
 
