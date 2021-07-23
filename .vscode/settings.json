@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "iomanip": "c",
+        "sntp.h": "c",
+        "iot_button.h": "c"
+    }
+}

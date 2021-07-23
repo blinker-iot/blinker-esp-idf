@@ -1,0 +1,5 @@
+{
+    "board": "esp8266:esp8266:d1",
+    "configuration": "xtal=80,vt=flash,exception=legacy,ssl=all,eesz=4M2M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600",
+    "port": "COM36"
+}
