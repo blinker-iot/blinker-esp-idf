@@ -113,10 +113,11 @@ esp_err_t blinker_prov_smartconfig_init(void)
 static void blinker_prov_smartconfig_start(void)
 {
     b_prov_smartconfig_start = true;
-
+#if defined CONFIG_BLINKER_SMART_CONFIG
     ESP_ERROR_CHECK(esp_smartconfig_set_type(CONFIG_BLINKER_PROV_SMARTCONFIG_TYPE));
     smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
+#endif
 }
 
 esp_err_t blinker_prov_smartconfig_stop(void)
