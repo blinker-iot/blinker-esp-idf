@@ -841,7 +841,7 @@ static esp_err_t blinker_va_print(const char *param, const blinker_data_from_par
         cJSON_AddStringToObject(root, BLINKER_CMD_TO_DEVICE,   BLINKER_CMD_SERVER_RECEIVER);
         cJSON_AddStringToObject(root, BLINKER_CMD_FROM_DEVICE, blinker_mqtt_devicename());
         cJSON_AddStringToObject(root, BLINKER_CMD_DEVICE_TYPE, BLINKER_CMD_VASSISTANT);
-        cJSON_AddItemToObject(root, BLINKER_CMD_DATA, param);
+        cJSON_AddRawToObject(root, BLINKER_CMD_DATA, param);
 
         print_data = calloc(BLINKER_FORMAT_DATA_SIZE, sizeof(char));
         
