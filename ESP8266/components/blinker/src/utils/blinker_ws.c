@@ -50,6 +50,11 @@ static blinker_websocket_data_cb_t ws_cb = NULL;
 //     return httpd_queue_work(handle, ws_async_send, resp_arg);
 // }
 
+// typedef struct {
+//     char *data;
+//     async_resp_arg_t *resp_arg;
+// } async_data_arg_t;
+
 esp_err_t blinker_websocket_async_print(async_resp_arg_t *arg, const char *payload)
 {
     ESP_LOGI(TAG, "blinker_websocket_async_print: %s", payload);
@@ -61,7 +66,7 @@ esp_err_t blinker_websocket_async_print(async_resp_arg_t *arg, const char *paylo
     ws_pkt.type    = HTTPD_WS_TYPE_TEXT;
 
     esp_err_t err = httpd_ws_send_frame_async(arg->hd, arg->fd, &ws_pkt);
-
+    
     return err;
 }
 
@@ -80,6 +85,16 @@ esp_err_t blinker_websocket_print(httpd_req_t *req, const char *payload)
     return err;
 }
 
+// static void ws_async_send(void *arg)
+// {
+//     async_data_arg_t *data_arg = arg;
+    
+//     ws_cb(data_arg->resp_arg, data_arg->data);
+//     BLINKER_FREE(data_arg->resp_arg);
+//     BLINKER_FREE(data_arg->data);
+//     BLINKER_FREE(data_arg);
+// }
+
 static esp_err_t echo_handler(httpd_req_t *req)
 {
     uint8_t buf[128] = { 0 };
@@ -96,17 +111,15 @@ static esp_err_t echo_handler(httpd_req_t *req)
     ESP_LOGI(TAG, "Packet type: %d", ws_pkt.type);
 
     if (ws_pkt.type == HTTPD_WS_TYPE_TEXT && ws_cb != NULL) {
-        ws_cb(req, (char*)ws_pkt.payload);
-    }
-    // if (ws_pkt.type == HTTPD_WS_TYPE_TEXT &&
-    //     strcmp((char*)ws_pkt.payload,"Trigger async") == 0) {
-    //     return trigger_async_send(req->handle, req);
-    // }
+        async_resp_arg_t *resp_arg = calloc(1, sizeof(async_resp_arg_t));
+        resp_arg->hd = req->handle;
+        resp_arg->fd = httpd_req_to_sockfd(req);
 
-    // ret = httpd_ws_send_frame(req, &ws_pkt);
-    // if (ret != ESP_OK) {
-    //     ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
-    // }
+        ws_cb(resp_arg, (char*)ws_pkt.payload);
+        BLINKER_FREE(resp_arg);
+
+        ret = ESP_OK;
+    }
     return ret;
 }
 

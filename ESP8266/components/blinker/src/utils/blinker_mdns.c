@@ -22,15 +22,19 @@ esp_err_t blinker_mdns_init(const char *host_name)
     
     m_init = true;
 
+    char mac_name[13] = {0};
+    blinker_mac_device_name(mac_name);
+
     ESP_ERROR_CHECK(mdns_init());
     ESP_ERROR_CHECK(mdns_hostname_set(host_name));
-    ESP_ERROR_CHECK(mdns_instance_name_set("blinker"));
+    ESP_ERROR_CHECK(mdns_instance_name_set(host_name));
 
-    mdns_txt_item_t serviceTxtData[1] = {
-        {"deviceName", host_name}
+    mdns_txt_item_t serviceTxtData[2] = {
+        {"deviceName", host_name},
+        {"mac", mac_name}
     };
 
-    ESP_ERROR_CHECK(mdns_service_add("blinker", "_blinker", "_tcp", 81, serviceTxtData, 1));
+    ESP_ERROR_CHECK(mdns_service_add(host_name, "_blinker", "_tcp", 81, serviceTxtData, 2));
 
     return ESP_OK;
 }

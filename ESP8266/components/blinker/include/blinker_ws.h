@@ -14,7 +14,7 @@ typedef struct {
     int fd;
 } async_resp_arg_t;
 
-typedef void (*blinker_websocket_data_cb_t)(httpd_req_t *req, const char *payload);
+typedef void (*blinker_websocket_data_cb_t)(async_resp_arg_t *req, const char *payload);
 
 esp_err_t blinker_websocket_async_print(async_resp_arg_t *arg, const char *payload);
 
