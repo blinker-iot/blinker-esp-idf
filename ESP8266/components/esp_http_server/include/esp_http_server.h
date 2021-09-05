@@ -361,6 +361,11 @@ typedef struct httpd_uri {
      * Pointer to subprotocol supported by URI
      */
     const char *supported_subprotocol;
+
+    /**
+     * blinker, websocket client connect handler
+     */
+    esp_err_t (*connect_cb)(httpd_req_t *r);
 #endif
 } httpd_uri_t;
 

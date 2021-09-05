@@ -2268,13 +2268,15 @@ static void blinker_device_register_task(void *arg)
                 break;
             
             case BLINKER_PRO_DEVICE_WAIT_REGISTER:
-                if (pro_device_get_register) {
-                    pro_device_wait_register = false;
-                    pro_status = BLINKER_PRO_DEVICE_REGISTER;
-                    ESP_LOGI(TAG, "BLINKER_PRO_DEVICE_REGISTER");
-                } else {
-                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL/10));
-                }
+                vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL / 5));
+                pro_status = BLINKER_PRO_DEVICE_REGISTER;
+                // if (pro_device_get_register) {
+                //     pro_device_wait_register = false;
+                //     pro_status = BLINKER_PRO_DEVICE_REGISTER;
+                //     ESP_LOGI(TAG, "BLINKER_PRO_DEVICE_REGISTER");
+                // } else {
+                //     vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL/10));
+                // }
                 break;
 
             case BLINKER_PRO_DEVICE_REGISTER:
