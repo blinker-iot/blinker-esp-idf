@@ -31,7 +31,7 @@ extern "C"
 
 #if defined CONFIG_BLINKER_CUSTOM_ESP
 
-#define BLINKER_REGISTER_TASK_DEEP      2
+#define BLINKER_REGISTER_TASK_DEEP      3
 
 #elif defined CONFIG_BLINKER_PRO_ESP
 

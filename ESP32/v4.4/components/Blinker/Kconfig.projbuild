@@ -1,0 +1,293 @@
+menu "Blinker Config"
+    menu "Blinker Device Config"
+        choice BLINKER_DEVICE
+            prompt "Blinker Device Type"
+            default BLINKER_CUSTOM_ESP
+            help
+                Blinker Device Type.
+        
+        config BLINKER_CUSTOM_ESP
+            bool "BLINKER_CUSTOM_ESP"
+        config BLINKER_PRO_ESP
+            bool "BLINKER_PRO_ESP"
+        endchoice
+
+        config BLINKER_TYPE_KEY
+            depends on BLINKER_PRO_ESP
+            string "Type Key"
+            default "Your Device Type Key"
+            help
+                Blinker Typekey for Blinker Server to identify device.
+
+        config BLINKER_AUTH_KEY
+            string "Auth Key"
+            default "Your Device Secret Key"
+            help
+                Blinker Authkey for Blinker Server to identify device.
+            
+        choice BLINKER_ALIGENIE
+            prompt "Blinker ALIGENIE Device Type"
+            default BLINKER_ALIGENIE_NONE
+            help
+                ALIGENIE assistant support device type you want to use.
+
+        config BLINKER_ALIGENIE_NONE
+            bool "ALIGENIE_NONE"
+        config BLINKER_ALIGENIE_LIGHT
+            bool "ALIGENIE_LIGHT"
+        config BLINKER_ALIGENIE_FAN
+            bool "ALIGENIE_FAN"
+        config BLINKER_ALIGENIE_OUTLET
+            bool "ALIGENIE_OUTLET"
+        config BLINKER_ALIGENIE_SENSOR
+            bool "ALIGENIE_SENSOR"
+        config BLINKER_ALIGENIE_MULTI_OUTLET
+            bool "ALIGENIE_MULTI_OUTLET"
+        config BLINKER_ALIGENIE_AIR_CONDITION
+            bool "ALIGENIE_AIR_CONDITION"
+        
+        endchoice
+
+        config BLINKER_ALIGENIE_TYPE
+            string
+            default "" if BLINKER_ALIGENIE_NONE
+            default "&aliType=light"  if BLINKER_ALIGENIE_LIGHT
+            default "&aliType=fan"    if BLINKER_ALIGENIE_FAN
+            default "&aliType=outlet" if BLINKER_ALIGENIE_OUTLET
+            default "&aliType=sensor" if BLINKER_ALIGENIE_SENSOR
+            default "&aliType=multi_outlet" if BLINKER_ALIGENIE_MULTI_OUTLET
+            default "&aliType=aircondition" if BLINKER_ALIGENIE_AIR_CONDITION
+
+        choice BLINKER_DUEROS
+            prompt "Blinker DUEROS Device Type"
+            default BLINKER_DUEROS_NONE
+            help
+                DUEROS assistant support device type you want to use.
+
+        config BLINKER_DUEROS_NONE
+            bool "DUEROS_NONE"
+        config BLINKER_DUEROS_LIGHT
+            bool "DUEROS_LIGHT"
+        config BLINKER_DUEROS_FAN
+            bool "DUEROS_FAN"
+        config BLINKER_DUEROS_OUTLET
+            bool "DUEROS_OUTLET"
+        config BLINKER_DUEROS_SENSOR
+            bool "DUEROS_SENSOR"
+        config BLINKER_DUEROS_MULTI_OUTLET
+            bool "DUEROS_MULTI_OUTLET"
+        config BLINKER_DUEROS_AIR_CONDITION
+            bool "DUEROS_AIR_CONDITION"
+        
+        endchoice
+
+        config BLINKER_DUEROS_TYPE
+            string
+            default "" if BLINKER_DUEROS_NONE
+            default "&duerType=LIGHT"  if BLINKER_DUEROS_LIGHT
+            default "&duerType=FAN"    if BLINKER_DUEROS_FAN
+            default "&duerType=SOCKET" if BLINKER_DUEROS_OUTLET
+            default "&duerType=AIR_MONITOR" if BLINKER_DUEROS_SENSOR
+            default "&duerType=multi_outlet" if BLINKER_DUEROS_MULTI_OUTLET
+            default "&duerType=MULTI_SOCKET" if BLINKER_DUEROS_AIR_CONDITION
+
+        choice BLINKER_MIOT
+            prompt "Blinker MIOT Device Type"
+            default BLINKER_MIOT_NONE
+            help
+                MIOT assistant support device type you want to use.
+
+        config BLINKER_MIOT_NONE
+            bool "MIOT_NONE"
+        config BLINKER_MIOT_LIGHT
+            bool "MIOT_LIGHT"
+        config BLINKER_MIOT_FAN
+            bool "MIOT_FAN"
+        config BLINKER_MIOT_OUTLET
+            bool "MIOT_OUTLET"
+        config BLINKER_MIOT_SENSOR
+            bool "MIOT_SENSOR"
+        config BLINKER_MIOT_MULTI_OUTLET
+            bool "MIOT_MULTI_OUTLET"
+        config BLINKER_MIOT_AIR_CONDITION
+            bool "MIOT_AIR_CONDITION"
+        
+        endchoice
+
+        config BLINKER_MIOT_TYPE
+            string
+            default "" if BLINKER_MIOT_NONE
+            default "&miType=light"  if BLINKER_MIOT_LIGHT
+            default "&miType=fan"    if BLINKER_MIOT_FAN
+            default "&miType=outlet" if BLINKER_MIOT_OUTLET
+            default "&miType=sensor" if BLINKER_MIOT_SENSOR
+            default "&miType=multi_outlet" if BLINKER_MIOT_MULTI_OUTLET
+            default "&miType=aircondition" if BLINKER_MIOT_AIR_CONDITION
+    endmenu
+    
+    menu "Blinker Provisioning Config"
+        choice BLINKER_PROV_TYPE
+            prompt "WiFi Config Type"
+            default BLINKER_SMART_CONFIG
+            help
+                Set WiFi config type.
+        
+        config BLINKER_DEFAULT_CONFIG
+            depends on BLINKER_CUSTOM_ESP
+            bool "DefaultConfig"
+        config BLINKER_SMART_CONFIG
+            bool "SmartConfig"
+        config BLINKER_AP_CONFIG
+            bool "ApConfig"
+
+        endchoice
+
+        menu "Blinker Default Config"
+            depends on BLINKER_CUSTOM_ESP
+            depends on BLINKER_DEFAULT_CONFIG
+            config BLINKER_WIFI_SSID
+                string "WiFi SSID"
+                default "Your WiFi network SSID or name"
+                help
+                    The WLAN SSID which your device connect.
+
+            config BLINKER_WIFI_PASSWORD
+                string "WiFi Password"
+                default "Your WiFi network WPA password or WEP key"
+                help
+                    The WLAN Password which your device connect.
+        endmenu
+
+        choice BLINKER_PROV_SMARTCONFIG_TYPE
+            prompt "Smartconfig Type"
+            default ESP_TOUCH
+            depends on BLINKER_SMART_CONFIG
+            help
+                Set protocol type of SmartConfig.
+
+                Start SmartConfig method according to the selected type when user select "ESPTouch", "AirKiss",  "ESPTouch and AirKiss" or "ESPTouch V2" type.
+
+        config ESP_TOUCH
+            bool "ESPTouch"
+        config AIRKISS
+            bool "AirKiss"
+        config ESP_TOUCH-AIRKISS
+            bool "ESPTouch and AirKiss"
+        config ESP_TOUCH_V2
+            bool "ESPTouch-V2"
+        endchoice
+
+        config BLINKER_PROV_SMARTCONFIG_TYPE
+            int
+            default 0 if ESP_TOUCH
+            default 1 if AIRKISS
+            default 2 if ESP_TOUCH-AIRKISS
+            default 3 if ESP_TOUCH_V2
+    endmenu
+
+    menu "Blinker Utils"
+        config BLINKER_SERVER_HOST
+            string "Blinker Server Host"
+            default "iot.diandeng.tech"
+            help
+                Blinker Server Host.
+                
+        config BLINKER_NVS_NAMESPACE
+            string "Namespace where data is stored in NVS"
+            default "blinker_app"
+            help
+                Namespace where data is stored in NVS.
+
+        config BLINKER_HTTP_BUFFER_SIZE
+            int "Buffer size to store the http response"
+            range 512 2048
+            default 1024
+            help
+                Buffer size to store the http response.
+
+        config BLINKER_HTTP_HEART_BEAT_TIME_INTERVAL
+            int "Http heart beat interval(min)"
+            range 5 30
+            default 10
+            help
+                Http heart beat interval(min).
+
+        choice BLINKER_RESET_TYPE
+            prompt "The type use to reset device"
+            default REBOOT_RESET
+            help
+                The type use to reset device
+        
+        config REBOOT_RESET_TYPE
+            bool "REBOOT_RESET"
+        config BUTTON_RESET_TYPE
+            bool "BUTTON_RESET"
+        endchoice
+
+        menu "Blinker Button Reset Config"
+            config BUTTON_RESET_INTERVAL_TIME
+                int "Button press interval(s) time to reset device"
+                range 2 10
+                default 5
+
+            choice TIMER_IMPLEMENT
+                bool "Button Timer Mode"
+                default BUTTON_USE_ESP_TIMER
+                help 
+                    Choose a implementation of timer for button instance.
+
+            config BUTTON_USE_RTOS_TIMER
+                bool "Use FreeRTOS Timer"
+            config BUTTON_USE_ESP_TIMER
+                bool "Use ESP Timer"
+            endchoice
+            
+            config IO_GLITCH_FILTER_TIME_MS
+                int "IO glitch filter timer ms (10~100)"
+                range 10 100
+                default 50
+
+            config BUTTON_IO_NUM
+                int "Button io number set"
+                default 0
+
+            config BUTTON_ACTIVE_LEVEL
+                int "Button cative level, high or low"
+                default 0
+        endmenu
+
+        menu "Blinker Reboot Reset Config"
+            config BLINKER_REBOOT_UNBROKEN_INTERVAL_TIMEOUT
+                int "Continuous reboot interval(ms)"
+                range 3000 10000
+                default 5000
+                help
+                    Continuous reboot interval.
+
+            config BLINKER_REBOOT_UNBROKEN_FALLBACK_COUNT_RESET
+                int "Continuous restart triggers device reset"
+                range 3 10
+                default 5
+                help
+                    Continuous restart triggers device reset.
+
+            config BLINKER_REBOOT_UNBROKEN_FALLBACK_COUNT
+                int "Continuous restart triggers version rollback"
+                default 30
+                help
+                    Continuous restart triggers version rollback.
+        endmenu
+
+        config BLINKER_FIRMWARE_VERSION
+            string "Device firmware version"
+            default "0.1.0"
+            help
+                Device firmware version
+
+        config BLINKER_WITH_SSL
+            bool "blinker with ssl"
+            default n
+            help
+                Blinker main protocol mqtt use ssl.
+    endmenu
+endmenu

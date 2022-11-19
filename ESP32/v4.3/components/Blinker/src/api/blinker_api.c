@@ -2439,7 +2439,7 @@ esp_err_t blinker_init(void)
     auto_format_queue = xQueueCreate(10, sizeof(blinker_auto_format_queue_t));
     xTaskCreate(blinker_device_auto_format_task, 
                 "device_auto_format",
-                2 * 1024,
+                3 * 1024,
                 NULL,
                 3,
                 NULL);

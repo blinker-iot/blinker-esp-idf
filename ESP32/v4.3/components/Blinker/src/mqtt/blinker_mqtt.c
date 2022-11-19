@@ -296,8 +296,11 @@ esp_err_t blinker_mqtt_init(blinker_mqtt_config_t *config)
     mqtt_data = calloc(1, sizeof(blinker_mqtt_data_t));
 
     if (!mqtt_data) {
+        // ESP_LOGI(TAG, "Initialising MQTT2");
         return ESP_FAIL;
     }
+
+    ESP_LOGI(TAG, "Initialising MQTT config");
 
     mqtt_data->config = malloc(sizeof(blinker_mqtt_config_t));
     *mqtt_data->config = *config;
