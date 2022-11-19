@@ -153,6 +153,8 @@ static esp_err_t echo_handler(httpd_req_t *req)
 
     //     ret = ESP_OK;
     // }
+    free(buf);
+    
     return ret;
 }
 
