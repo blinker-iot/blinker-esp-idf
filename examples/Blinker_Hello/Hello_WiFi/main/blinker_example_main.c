@@ -68,6 +68,6 @@ void app_main()
 {
     blinker_init();
 
-    blinker_widget_add(BUTTON_1, BLINKER_BUTTON, button_callback);
+    blinker_widget_add(BUTTON_1, BLINKER_BUTTON, button1_callback);
     blinker_data_handler(data_callback);
 }

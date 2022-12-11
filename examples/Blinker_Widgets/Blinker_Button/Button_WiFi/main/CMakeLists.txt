@@ -1,3 +1,3 @@
-set(COMPONENT_SRCS "smartconfig_main.c")
+set(COMPONENT_SRCS "blinker_example_main.c")
 
 register_component()

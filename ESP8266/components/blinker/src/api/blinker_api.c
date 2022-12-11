@@ -77,11 +77,6 @@ typedef enum {
     BLINKER_HTTP_METHOD_POST,
 } blinker_device_http_method_t;
 
-typedef struct {
-    char *key;
-    char *value;
-    bool is_raw;
-} blinker_auto_format_queue_t;
 
 typedef struct {
     char *uuid;
@@ -90,16 +85,22 @@ typedef struct {
     blinker_data_from_type_t type;
 } blinker_data_from_param_t;
 
+typedef struct {
+    char *key;
+    char *value;
+    bool is_raw;
+} blinker_auto_format_queue_t;
+
 #if defined CONFIG_BLINKER_PRO_ESP
 typedef enum {
-    BLINKER_PRO_DEVICE_AUTH = 0,
-    BLINKER_PRO_DEVICE_CHECK,
+    // BLINKER_PRO_DEVICE_AUTH = 0,
+    BLINKER_PRO_DEVICE_CHECK = 0,
     BLINKER_PRO_DEVICE_WAIT_REGISTER,
     BLINKER_PRO_DEVICE_REGISTER
 } blinker_pro_device_status_t;
 
 typedef struct {
-    char *uuid;
+    const char *uuid;
 } blinker_pro_esp_param_t;
 
 #define BLINKER_PRO_ESP_CHECK_KEY           "pro_check"
@@ -1830,10 +1831,10 @@ static esp_err_t blinker_device_auth(blinker_mqtt_config_t *mqtt_cfg)
         cJSON *detail = cJSON_GetObjectItem(root, BLINKER_CMD_DETAIL);
         if (detail != NULL && cJSON_HasObjectItem(detail, BLINKER_CMD_AUTHKEY)) {
             mqtt_cfg->authkey = strdup(cJSON_GetObjectItem(detail, BLINKER_CMD_AUTHKEY)->valuestring);
+
+            err = ESP_OK;
         }
         // cJSON_Delete(detail);
-
-        err = ESP_OK;
     }
 
     BLINKER_FREE(payload);
@@ -1962,7 +1963,7 @@ static blinker_data_from_type_t blinker_device_user_check(const char *user_name)
     }
 }
 
-static void blinker_websocket_data_callback(httpd_req_t *req, const char *payload)
+static void blinker_websocket_data_callback(async_resp_arg_t *req, const char *payload)
 {
     xSemaphoreTake(data_parse_mutex, portMAX_DELAY);
 
@@ -1979,7 +1980,7 @@ static void blinker_websocket_data_callback(httpd_req_t *req, const char *payloa
         if (strcmp(CONFIG_BLINKER_TYPE_KEY, cJSON_GetObjectItem(ws_data, BLINKER_CMD_REGISTER)->valuestring) == 0) {
             pro_device_get_register = true;
 
-            blinker_websocket_print(req, "{\"message\":\"success\"}\n");
+            blinker_websocket_async_print(req, "{\"message\":\"success\"}\n");
 
             cJSON_Delete(ws_data);
             xSemaphoreGive(data_parse_mutex);
@@ -2015,7 +2016,6 @@ static void blinker_websocket_data_callback(httpd_req_t *req, const char *payloa
             BLINKER_FREE(data_from->message_id);
         }
         if (data_from->resp_arg) {
-            BLINKER_FREE(data_from->resp_arg->hd);
             BLINKER_FREE(data_from->resp_arg);
         }
         BLINKER_FREE(data_from);
@@ -2025,8 +2025,8 @@ static void blinker_websocket_data_callback(httpd_req_t *req, const char *payloa
 
     if (data_from) {
         data_from->resp_arg = calloc(1, sizeof(async_resp_arg_t));
-        data_from->resp_arg->hd = req->handle;
-        data_from->resp_arg->fd = httpd_req_to_sockfd(req);
+        data_from->resp_arg->hd = req->hd;
+        data_from->resp_arg->fd = req->fd;
         data_from->type = BLINKER_DATA_FROM_WS;
     } else {
         cJSON_Delete(ws_data);
@@ -2248,21 +2248,12 @@ static void blinker_device_register_task(void *arg)
     esp_err_t err = ESP_FAIL;
     blinker_mqtt_config_t mqtt_config = {0};
     blinker_pro_esp_param_t pro_auth  = {0};
-    blinker_pro_device_status_t pro_status = BLINKER_PRO_DEVICE_AUTH;
+    blinker_pro_device_status_t pro_status = BLINKER_PRO_DEVICE_CHECK;
     bool task_run = true;
     char mac_name[13] = {0};
 
     while(task_run) {
         switch (pro_status) {
-            case BLINKER_PRO_DEVICE_AUTH:
-                err = blinker_device_auth(&mqtt_config);
-                if (err != ESP_OK) {
-                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL));
-                } else {
-                    pro_status = BLINKER_PRO_DEVICE_CHECK;
-                }
-                break;
-
             case BLINKER_PRO_DEVICE_CHECK:
                 if (blinker_storage_get(BLINKER_PRO_ESP_CHECK_KEY, &pro_auth, sizeof(blinker_pro_esp_param_t)) != ESP_OK) {
                     blinker_mac_device_name(mac_name);
@@ -2277,16 +2268,24 @@ static void blinker_device_register_task(void *arg)
                 break;
             
             case BLINKER_PRO_DEVICE_WAIT_REGISTER:
-                if (pro_device_get_register) {
-                    pro_device_wait_register = false;
-                    pro_status = BLINKER_PRO_DEVICE_REGISTER;
-                    ESP_LOGI(TAG, "BLINKER_PRO_DEVICE_REGISTER");
-                } else {
-                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL/10));
-                }
+                vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL / 5));
+                pro_status = BLINKER_PRO_DEVICE_REGISTER;
+                // if (pro_device_get_register) {
+                //     pro_device_wait_register = false;
+                //     pro_status = BLINKER_PRO_DEVICE_REGISTER;
+                //     ESP_LOGI(TAG, "BLINKER_PRO_DEVICE_REGISTER");
+                // } else {
+                //     vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL/10));
+                // }
                 break;
 
             case BLINKER_PRO_DEVICE_REGISTER:
+                err = blinker_device_auth(&mqtt_config);
+                if (err != ESP_OK) {
+                    vTaskDelay(pdMS_TO_TICKS(BLINKER_REGISTER_INTERVAL));
+                    break;
+                }
+
                 err = blinker_device_register(&mqtt_config);
 
                 // blinker_device_print(BLINKER_CMD_MESSAGE, BLINKER_CMD_SUCCESS, false);
