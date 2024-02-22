@@ -30,37 +30,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "blinker_api.h"
 
 static const char *TAG = "blinker";
-
-#define BUTTON_1    "btn-abc"
-#define NUM_1       "num-abc"
-
+static cJSON *button_param = NULL;
+static cJSON *num_param = NULL;
 static int count = 0;
 
 void button1_callback(const blinker_widget_param_val_t *val)
 {
+    if (val == NULL) {
+        ESP_LOGE(TAG, "Invalid parameter in button1_callback");
+        return;
+    }
+
     ESP_LOGI(TAG, "button state: %s", val->s);
     count++;
 
-    cJSON *param = cJSON_CreateObject();
-    blinker_widget_switch(param, val->s);
-    blinker_widget_print(BUTTON_1, param);
-    cJSON_Delete(param);
+    if (button_param == NULL) {
+        button_param = cJSON_CreateObject();
+        if (button_param == NULL) {
+            ESP_LOGE(TAG, "Failed to create cJSON object for button");
+            return;
+        }
+    }
+    blinker_widget_switch(button_param, val->s);
+    blinker_widget_print(BUTTON_1, button_param);
 
-    cJSON *num_param = cJSON_CreateObject();
+    if (num_param == NULL) {
+        num_param = cJSON_CreateObject();
+        if (num_param == NULL) {
+            ESP_LOGE(TAG, "Failed to create cJSON object for number");
+            return;
+        }
+    }
     blinker_widget_color(num_param, "#FF00FF");
     blinker_widget_text(num_param, "按键测试");
     blinker_widget_unit(num_param, "次");
     blinker_widget_value_number(num_param, count);
     blinker_widget_print(NUM_1, num_param);
-    cJSON_Delete(num_param);
 }
 
 static void data_callback(const char *data)
 {
+    if (data == NULL) {
+        ESP_LOGE(TAG, "Invalid parameter in data_callback");
+        return;
+    }
     ESP_LOGI(TAG, "data: %s", data);
 }
 
