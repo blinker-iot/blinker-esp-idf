@@ -35,21 +35,21 @@ jobs:
           json: '{"img": "assets/sdk/freertos.png", "text": "IDF (FreeRTOS)", "update": "${{ steps.current-time.outputs.formattedTime}}", "version": "${{steps.version.outputs.prop}}", "github": "https://github.com/blinker-iot/blinker-esp-idf", "document": "https://diandeng.tech/doc/freertos-support", "download": "sdk/blinker-esp-idf-${{steps.version.outputs.prop}}.zip" }'
 
       - name: upload zip
-        uses: garygrossgarten/github-action-scp@v0.5.3
+        uses: garygrossgarten/github-action-scp@release
         with:
           local: blinker-esp-idf-${{steps.version.outputs.prop}}.zip
           remote: ${{ secrets.REMOTE_PATH }}/blinker-esp-idf-${{steps.version.outputs.prop}}.zip
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
-          privateKey: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SERVER_PASSWD }}
           recursive: true
       
       - name: upload json
-        uses: garygrossgarten/github-action-scp@v0.5.3
+        uses: garygrossgarten/github-action-scp@release
         with:
           local: freertos.json
           remote: ${{ secrets.REMOTE_PATH }}/freertos.json
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
-          privateKey: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SERVER_PASSWD }}
           recursive: true
